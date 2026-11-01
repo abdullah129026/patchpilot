@@ -1,0 +1,22 @@
+[project]
+name = "patchpilot-agent"
+version = "0.1.0"
+description = "PatchPilot agent service: reproduces public GitHub issues in Docker"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn==0.32.1",
+]
+
+[project.optional-dependencies]
+test = [
+    "httpx==0.28.1",
+    "pytest==8.3.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
