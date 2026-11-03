@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const ISSUE_URL =
@@ -11,6 +11,16 @@ export default function JobForm() {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [limits, setLimits] = useState<{ daily_used: number; daily_ceiling: number } | null>(null);
+
+  useEffect(() => {
+    const agentUrl = process.env.NEXT_PUBLIC_AGENT_URL;
+    if (!agentUrl) return;
+    fetch(`${agentUrl}/api/limits`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setLimits)
+      .catch(() => null);
+  }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -43,6 +53,13 @@ export default function JobForm() {
         return;
       }
       const job = await res.json();
+      if (job.delete_token) {
+        try {
+          sessionStorage.setItem(`patchpilot-delete-${job.id}`, job.delete_token);
+        } catch {
+          // Storage unavailable; the report can still be removed by request.
+        }
+      }
       router.push(`/jobs/${job.id}`);
     } catch {
       setError("Could not reach the agent service. Try a sample report below.");
@@ -51,6 +68,7 @@ export default function JobForm() {
   }
 
   return (
+    <>
     <form className="job-form" onSubmit={submit}>
       <input
         type="text"
@@ -64,5 +82,12 @@ export default function JobForm() {
       </button>
       {error && <p className="error">{error}</p>}
     </form>
+    {limits && (
+      <p className="form-note">
+        Daily jobs used: {limits.daily_used} of {limits.daily_ceiling}. One
+        job runs at a time; extra submissions wait in the queue.
+      </p>
+    )}
+    </>
   );
 }

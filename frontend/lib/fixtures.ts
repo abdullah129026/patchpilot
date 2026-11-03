@@ -18,6 +18,7 @@ export type Job = {
   stack?: string;
   signature?: string;
   attempts: Attempt[];
+  queue_position?: number;
   repro_script?: string | null;
   failing_test?: string | null;
   fix_diff?: string | null;

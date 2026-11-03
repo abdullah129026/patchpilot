@@ -68,6 +68,12 @@ export default function JobPage({ params }: { params: { id: string } }) {
               until then, submitted jobs wait here rather than pretending to
               run. Sample jobs show the full click path:{" "}
               <Link href="/jobs/fixture-reproduced">fixture-reproduced</Link>.
+              {job.queue_position !== undefined && job.queue_position > 1 && (
+                <>
+                  {" "}Position {job.queue_position} in the queue: one job
+                  runs at a time.
+                </>
+              )}
             </p>
           </div>
         )}

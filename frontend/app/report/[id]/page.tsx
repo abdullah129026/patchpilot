@@ -10,6 +10,7 @@ import {
   VerdictBadge,
   VerdictExplanation,
 } from "@/components/ui";
+import Takedown from "@/components/Takedown";
 
 async function loadJob(id: string): Promise<Job | null> {
   const fixture = getFixture(id);
@@ -158,6 +159,8 @@ export default function ReportPage({ params }: { params: { id: string } }) {
           <CodeBlock code={job.fix_diff} />
         </div>
       )}
+
+      <Takedown jobId={job.id} fixture={job.fixture} />
     </>
   );
 }
