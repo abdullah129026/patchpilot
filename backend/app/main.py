@@ -1,26 +1,48 @@
 """Agent service skeleton (FastAPI).
 
-Phase 1 scope only: health, fixture jobs, and validated job submission
-into the filesystem store. The reproduction loop, GitHub fetching, and
-Docker running arrive in Phase 3; ceilings and takedown arrive in
-Phase 2. Submitted jobs stay queued until Phase 3 builds the runner.
+Phase 1 scope: health, fixture jobs, and validated job submission
+into the filesystem store. Phase 2 scope: submission ceilings, the
+queue view, submitter deletion, and takedown requests. The
+reproduction loop, GitHub fetching, and Docker running arrive in
+Phase 3. Submitted jobs stay queued until Phase 3 builds the runner.
 """
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
-from app import config
+from app import config, limits
 from app.fixtures import FIXTURES, get_fixture
 from app.github_url import parse_issue_url
-from app.job_store import create_job, get_job
+from app.job_store import (
+    count_active_jobs,
+    create_job,
+    delete_job,
+    get_job,
+    record_takedown_request,
+)
 
 
 class JobRequest(BaseModel):
     issue_url: str
 
 
+class TakedownRequest(BaseModel):
+    contact: str = Field(default="", max_length=256)
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="PatchPilot agent service")
+    # The demo API is public by design (no accounts, D2): the Vercel
+    # frontend and local dev both call it from the browser, so it
+    # answers cross-origin. The delete token, not origin, guards deletion.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["*"],
+    )
 
     @app.get("/health")
     def health():
@@ -29,6 +51,13 @@ def create_app() -> FastAPI:
             "service": config.SERVICE_NAME,
             "version": config.SERVICE_VERSION,
         }
+
+    @app.get("/api/limits")
+    def limit_status(request: Request):
+        store = config.job_dir()
+        used = limits.usage(store, limits.client_ip(request))
+        active = count_active_jobs(store)
+        return {**used, "active_jobs": active, "queue_position_for_next": active + 1}
 
     @app.get("/api/jobs/fixtures")
     def fixture_list():
@@ -42,12 +71,20 @@ def create_app() -> FastAPI:
         return fixture
 
     @app.post("/api/jobs", status_code=201)
-    def submit_job(body: JobRequest):
+    def submit_job(body: JobRequest, request: Request):
         try:
             owner, repo, number = parse_issue_url(body.issue_url)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        return create_job(config.job_dir(), owner, repo, number)
+        store = config.job_dir()
+        ip = limits.client_ip(request)
+        try:
+            limits.check_limits(store, ip)
+        except limits.LimitExceeded as exc:
+            raise HTTPException(status_code=429, detail=exc.message) from exc
+        job = create_job(store, owner, repo, number)
+        limits.record_submission(store, ip)
+        return job
 
     @app.get("/api/jobs/{job_id}")
     def job_detail(job_id: str):
@@ -55,6 +92,30 @@ def create_app() -> FastAPI:
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
         return job
+
+    @app.delete("/api/jobs/{job_id}", status_code=204)
+    def remove_job(job_id: str, request: Request):
+        token = request.headers.get("x-delete-token")
+        try:
+            deleted = delete_job(config.job_dir(), job_id, token)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        if not deleted:
+            raise HTTPException(status_code=404, detail="job not found")
+        return Response(status_code=204)
+
+    @app.post("/api/jobs/{job_id}/takedown-request", status_code=202)
+    def takedown_request(job_id: str, body: TakedownRequest):
+        if get_job(config.job_dir(), job_id) is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        record_takedown_request(
+            config.job_dir(), job_id, body.contact.strip(), body.reason.strip()
+        )
+        return {
+            "status": "received",
+            "detail": "Takedown request recorded. The report stays up until "
+            "its owner reviews the request.",
+        }
 
     return app
 

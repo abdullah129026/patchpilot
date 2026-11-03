@@ -1,0 +1,100 @@
+"""Daily submission ceilings (Phase 2, decision D2).
+
+One job at a time, a global daily ceiling tied to the Groq free-tier
+token cap, and a per-address daily ceiling. Counts live in a single
+counters file inside the job store, never in a job report, so the read
+endpoint cannot leak them. Addresses are hashed before storage: the
+counter needs to tell addresses apart, it does not need to keep them.
+"""
+
+import hashlib
+import json
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
+
+from app import config
+
+_LOCK = threading.Lock()
+
+
+class LimitExceeded(Exception):
+    def __init__(self, kind: str, message: str):
+        super().__init__(message)
+        self.kind = kind
+        self.message = message
+
+
+def client_ip(request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    if request.client is not None:
+        return request.client.host
+    return "unknown"
+
+
+def _counters_path(store_dir: str | Path) -> Path:
+    return Path(store_dir) / ".counters.json"
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def _load(store_dir: str | Path) -> dict:
+    try:
+        return json.loads(_counters_path(store_dir).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _save(store_dir: str | Path, counters: dict) -> None:
+    path = _counters_path(store_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(counters, indent=2))
+
+
+def _day(counters: dict, day: str) -> dict:
+    return counters.setdefault("days", {}).setdefault(day, {"global": 0, "ips": {}})
+
+
+def usage(store_dir: str | Path, ip: str) -> dict:
+    counters = _load(store_dir)
+    day = counters.get("days", {}).get(_today(), {"global": 0, "ips": {}})
+    per_ip = day["ips"].get(hashlib.sha256(ip.encode()).hexdigest(), 0)
+    return {
+        "daily_used": day["global"],
+        "daily_ceiling": config.DAILY_JOB_CEILING,
+        "per_ip_used": per_ip,
+        "per_ip_ceiling": config.PER_IP_DAILY_CEILING,
+    }
+
+
+def check_limits(store_dir: str | Path, ip: str) -> None:
+    used = usage(store_dir, ip)
+    if used["daily_used"] >= config.DAILY_JOB_CEILING:
+        raise LimitExceeded(
+            "global",
+            "Daily job limit reached (3 jobs per day while the demo runs "
+            "on the free LLM tier). Try again tomorrow.",
+        )
+    if used["per_ip_used"] >= config.PER_IP_DAILY_CEILING:
+        raise LimitExceeded(
+            "per_ip",
+            "You have reached the per-address daily limit (2 jobs per day). "
+            "Try again tomorrow.",
+        )
+
+
+def record_submission(store_dir: str | Path, ip: str) -> dict:
+    with _LOCK:
+        counters = _load(store_dir)
+        day = _day(counters, _today())
+        day["global"] += 1
+        key = hashlib.sha256(ip.encode()).hexdigest()
+        day["ips"][key] = day["ips"].get(key, 0) + 1
+        _save(store_dir, counters)
+    return usage(store_dir, ip)
