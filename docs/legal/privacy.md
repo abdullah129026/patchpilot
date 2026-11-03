@@ -9,6 +9,10 @@ Status: draft for the Phase 4 human copy pass.
   and checked.
 - Job workspaces (cloned code, containers) are deleted after each job.
 - Reports are kept indefinitely as the product's public proof, and
-  removed on request (the takedown path lands in Phase 2).
+  removed on request. The submitter can delete a report immediately
+  with the delete token issued at submission; anyone else files a
+  takedown request from the report page, which is recorded for the
+  project owner to review. Submission addresses are stored only as
+  hashes, for the daily ceilings, and never appear in a report.
 - No secrets are stored in code, logs, or reports. Any API keys live
   in the host environment only.
