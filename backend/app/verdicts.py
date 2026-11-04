@@ -30,11 +30,14 @@ def compute_verdict(
     signature_found: bool,
     setup_failed: bool = False,
     limit_reached: bool = False,
+    underspecified: bool = False,
 ) -> Verdict:
     if setup_failed:
         return Verdict.SETUP_FAILED
     if limit_reached:
         return Verdict.LIMIT_REACHED
+    if underspecified:
+        return Verdict.ISSUE_UNDERSPECIFIED
     if exit_code is not None and exit_code != 0 and signature_found:
         return Verdict.REPRODUCED
     return Verdict.NOT_REPRODUCED

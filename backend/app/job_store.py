@@ -87,6 +87,16 @@ def get_job(store_dir: str | Path, job_id: str) -> dict | None:
     return _public(job) if job is not None else None
 
 
+def update_job(store_dir: str | Path, job_id: str, **fields) -> dict | None:
+    """Merge fields into a job's report and return the public view."""
+    job = _read_raw(store_dir, job_id)
+    if job is None:
+        return None
+    job.update(fields)
+    (Path(store_dir) / job_id / "report.json").write_text(json.dumps(job, indent=2))
+    return _public(job)
+
+
 def delete_job(store_dir: str | Path, job_id: str, token: str | None) -> bool:
     """Delete a job with its submitter token. True if deleted, False
     if there is no such job. Raises PermissionError on a bad token."""
