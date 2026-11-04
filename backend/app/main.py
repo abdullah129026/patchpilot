@@ -2,9 +2,10 @@
 
 Phase 1 scope: health, fixture jobs, and validated job submission
 into the filesystem store. Phase 2 scope: submission ceilings, the
-queue view, submitter deletion, and takedown requests. The
-reproduction loop, GitHub fetching, and Docker running arrive in
-Phase 3. Submitted jobs stay queued until Phase 3 builds the runner.
+queue view, submitter deletion, and takedown requests. Phase 3
+scope: the reproduction loop behind POST /api/jobs/{id}/run, with
+live streaming and frontend auto-run still to come in a later
+Phase 3 run.
 """
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -21,6 +22,7 @@ from app.job_store import (
     get_job,
     record_takedown_request,
 )
+from app.pipeline import run_job
 
 
 class JobRequest(BaseModel):
@@ -85,6 +87,15 @@ def create_app() -> FastAPI:
         job = create_job(store, owner, repo, number)
         limits.record_submission(store, ip)
         return job
+
+    @app.post("/api/jobs/{job_id}/run")
+    def run_job_endpoint(job_id: str):
+        job = get_job(config.job_dir(), job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="job not found")
+        if job.get("status") != "queued":
+            raise HTTPException(status_code=409, detail="only queued jobs can be run")
+        return run_job(config.job_dir(), job_id)
 
     @app.get("/api/jobs/{job_id}")
     def job_detail(job_id: str):
