@@ -4,7 +4,7 @@
 
 export type Attempt = {
   n: number;
-  exit_code: number;
+  exit_code: number | null;
   log: string;
   script: string;
 };
