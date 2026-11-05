@@ -1,0 +1,102 @@
+[
+  {
+    "base_commit": "2c64ae48e2b1984a16cf25d215c9f9d21146426d",
+    "error_signature": "AttributeError: 'Name' object has no attribute '_pyflakes_parent'",
+    "fix_commit": "e0d7a6be89591f913beb740af348df8b7723e7a4",
+    "fix_pr": 745,
+    "number": 744,
+    "owner": "PyCQA",
+    "repo": "pyflakes",
+    "repro": "check('print *= -1\\n')"
+  },
+  {
+    "base_commit": "e9324649874a7124a08c3826d4cf78a4dc3aa32c",
+    "error_signature": "TypeError: 'bool' object is not subscriptable",
+    "fix_commit": "e19886e583637a7e2eec428cc036094b9630f2d0",
+    "fix_pr": 765,
+    "number": 764,
+    "owner": "PyCQA",
+    "repo": "pyflakes",
+    "repro": "check('x: int\\nx.__dict__\\ndef f(): x = 1\\n')"
+  },
+  {
+    "base_commit": "2441e9cc3caf1976938596c26ec4890c99c244d7",
+    "error_signature": "AttributeError: 'ClassScope' object has no attribute 'indirect_assignments'",
+    "fix_commit": "9228d609b3fc827216ae64533108ca35de3322fb",
+    "fix_pr": 836,
+    "number": 834,
+    "owner": "PyCQA",
+    "repo": "pyflakes",
+    "repro": "check('g = 0\\nclass C:\\n    global g\\n    g = 1\\n')"
+  },
+  {
+    "owner": "asottile",
+    "repo": "pyupgrade",
+    "number": 194,
+    "base_commit": "776d3fd38005862a891ce7a8e9c77fbfaadcca4c",
+    "fix_commit": "e93f2a7f685011c0926c6918cbd8e7fc1e9ca293",
+    "fix_pr": 195,
+    "error_signature": "ValueError: Single '{' encountered in format string",
+    "repro": "pyupgrade --py36-plus on a file containing '{'.format(a)"
+  },
+  {
+    "base_commit": "4f1369bf114fd60cbe155e29a79fdd715e1e8f3e",
+    "error_signature": "KeyError: (3, 11)",
+    "fix_commit": "e02eaaff97f02df8f097fc498f1efaff175b2d5b",
+    "fix_pr": 438,
+    "number": 437,
+    "owner": "asottile",
+    "repo": "pyupgrade",
+    "repro": "pyupgrade --py311-plus on a file with a from-import"
+  },
+  {
+    "base_commit": "30554f503a5368aabf6ee571bd9cdf29d5f00c12",
+    "error_signature": "TypeError: expected string or bytes-like object",
+    "fix_commit": "5c70ed4f983c4b27e67c34fe67266e1514484bf0",
+    "fix_pr": 650,
+    "number": 638,
+    "owner": "pypa",
+    "repo": "packaging",
+    "repro": "Marker('extra == \"opt-feature\"').evaluate({\"extra\": None})"
+  },
+  {
+    "base_commit": "bdc5cb6c2ec58b526d5d59dcf7235f820602c71e",
+    "error_signature": "TypeError: can't subtract offset-naive and offset-aware datetimes",
+    "fix_commit": "75abba2bcff904d6438c91a92bf1b50c6e243d12",
+    "fix_pr": 100,
+    "number": 17,
+    "owner": "python-humanize",
+    "repo": "humanize",
+    "repro": "naturaltime(datetime.now(timezone.utc))"
+  },
+  {
+    "base_commit": "dab62bfbc9ac4cd9e5d558b38723d31d453c37da",
+    "error_signature": "ValueError: math domain error",
+    "fix_commit": "14fc392cf49936fee06edd41863b1372ffc29d95",
+    "fix_pr": 47,
+    "number": 57,
+    "owner": "python-humanize",
+    "repo": "humanize",
+    "repro": "humanize.metric(0)"
+  },
+  {
+    "base_commit": "d906c7d4efea0b9baee5043fc4aad9aaef13cf2b",
+    "error_signature": "ValueError: cannot convert float NaN to integer",
+    "fix_commit": "ba534325327fbe39af2d7516254958bd722c846b",
+    "fix_pr": 63,
+    "number": 62,
+    "owner": "python-humanize",
+    "repo": "humanize",
+    "repro": "humanize.metric(math.nan)"
+  },
+  {
+    "base_commit": "6d474edd9997fb39d176238ac31864e59a28b9c3",
+    "error_signature": "TypeError: can't subtract offset-naive and offset-aware datetimes",
+    "fix_commit": "7abebbadf1011eca40ccc597de298b66bb3619a5",
+    "fix_pr": 123,
+    "number": 122,
+    "owner": "python-humanize",
+    "repo": "humanize",
+    "repro": "naturaltime(aware past, when=aware now)"
+  }
+]
