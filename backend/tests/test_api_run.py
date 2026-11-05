@@ -23,7 +23,7 @@ def test_run_non_queued_job_is_409(tmp_path, monkeypatch):
     assert c.post(f"/api/jobs/{job['id']}/run").status_code == 409
 
 
-def test_run_delegates_to_pipeline(tmp_path, monkeypatch):
+def test_run_starts_background_job_and_returns_202(tmp_path, monkeypatch):
     c = client(tmp_path, monkeypatch)
     job = create_job(tmp_path, "acme", "demo", 7)
     seen = {}
@@ -34,6 +34,21 @@ def test_run_delegates_to_pipeline(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main_module, "run_job", fake_run)
     resp = c.post(f"/api/jobs/{job['id']}/run")
-    assert resp.status_code == 200
-    assert resp.json()["verdict"] == "NOT_REPRODUCED"
+    assert resp.status_code == 202
     assert seen["job_id"] == job["id"]
+    # The background thread finishes the job; polling sees it done.
+    for _ in range(50):
+        done = c.get(f"/api/jobs/{job['id']}").json()
+        if done["status"] == "done":
+            break
+    assert done["verdict"] == "NOT_REPRODUCED"
+
+
+def test_stream_emits_done_job_and_missing_is_404(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch)
+    job = create_job(tmp_path, "acme", "demo", 7)
+    update_job(tmp_path, job["id"], status="done", verdict="NOT_REPRODUCED")
+    with c.stream("GET", f"/api/jobs/{job['id']}/stream") as resp:
+        assert resp.status_code == 200
+        assert "NOT_REPRODUCED" in resp.read().decode()
+    assert c.get("/api/jobs/abcdef123456/stream").status_code == 404

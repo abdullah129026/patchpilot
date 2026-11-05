@@ -3,13 +3,19 @@
 Phase 1 scope: health, fixture jobs, and validated job submission
 into the filesystem store. Phase 2 scope: submission ceilings, the
 queue view, submitter deletion, and takedown requests. Phase 3
-scope: the reproduction loop behind POST /api/jobs/{id}/run, with
-live streaming and frontend auto-run still to come in a later
-Phase 3 run.
+scope: the reproduction loop behind POST /api/jobs/{id}/run, which
+starts the job in a background thread and returns 202 so the job page
+can watch it live over GET /api/jobs/{id}/stream (SSE) or by polling
+the job detail. Attempts land in the job record as they finish.
 """
+
+import json
+import threading
+import time
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import config, limits
@@ -88,14 +94,52 @@ def create_app() -> FastAPI:
         limits.record_submission(store, ip)
         return job
 
-    @app.post("/api/jobs/{job_id}/run")
+    @app.post("/api/jobs/{job_id}/run", status_code=202)
     def run_job_endpoint(job_id: str):
         job = get_job(config.job_dir(), job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
         if job.get("status") != "queued":
             raise HTTPException(status_code=409, detail="only queued jobs can be run")
-        return run_job(config.job_dir(), job_id)
+        # A job runs for minutes; the caller watches it live instead of
+        # holding one HTTP request open for the whole run.
+        from app.job_store import update_job
+
+        update_job(config.job_dir(), job_id, status="running")
+        thread = threading.Thread(
+            target=run_job, args=(config.job_dir(), job_id), daemon=True
+        )
+        thread.start()
+        return get_job(config.job_dir(), job_id)
+
+    @app.get("/api/jobs/{job_id}/stream")
+    def job_stream(job_id: str):
+        if get_job(config.job_dir(), job_id) is None:
+            raise HTTPException(status_code=404, detail="job not found")
+
+        def events():
+            last = None
+            for _ in range(config.MAX_JOB_SECONDS + 60):
+                job = get_job(config.job_dir(), job_id)
+                if job is None:
+                    break
+                snapshot = (
+                    job.get("status"),
+                    len(job.get("attempts") or []),
+                    job.get("verdict"),
+                )
+                if snapshot != last:
+                    last = snapshot
+                    yield f"data: {json.dumps(job)}\n\n"
+                if job.get("status") in ("done", "failed"):
+                    break
+                time.sleep(1)
+
+        return StreamingResponse(
+            events(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache"},
+        )
 
     @app.get("/api/jobs/{job_id}")
     def job_detail(job_id: str):
