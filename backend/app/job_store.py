@@ -61,17 +61,24 @@ def count_active_jobs(store_dir: str | Path) -> int:
     return count
 
 
-def create_job(store_dir: str | Path, owner: str, repo: str, number: int) -> dict:
+def create_job(
+    store_dir: str | Path, owner: str, repo: str, number: int, ref: str | None = None
+) -> dict:
     _safe_name(owner)
     _safe_name(repo)
+    if ref is not None and not re.match(r"^[0-9a-f]{40}$", ref):
+        raise ValueError(f"invalid ref: {ref!r}")
     job_id = secrets.token_hex(6)
     token = secrets.token_hex(16)
+    issue = {"owner": owner, "repo": repo, "number": number}
+    if ref is not None:
+        issue["ref"] = ref
     stored = {
         "id": job_id,
         "status": "queued",
         "verdict": None,
         "fixture": False,
-        "issue": {"owner": owner, "repo": repo, "number": number},
+        "issue": issue,
         "attempts": [],
         "queue_position": count_active_jobs(store_dir) + 1,
         "delete_token_hash": hashlib.sha256(token.encode()).hexdigest(),

@@ -7,6 +7,7 @@ reach git. A clone bigger than the Phase 0 cap is deleted, not run.
 """
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,6 +16,8 @@ import httpx
 
 from app import config
 from app.github_url import _OWNER_REPO
+
+_REF = re.compile(r"^[0-9a-f]{40}$")
 
 _API = "https://api.github.com"
 
@@ -97,3 +100,36 @@ def clone_repo(owner, repo, dest, timeout=600) -> None:
     if _dir_size_mb(dest) > config.MAX_CLONE_MB:
         shutil.rmtree(dest, ignore_errors=True)
         raise CloneError(f"repo exceeds the {config.MAX_CLONE_MB} MB clone cap")
+
+
+def checkout_ref(workspace, ref: str) -> None:
+    """Move a clone to one recorded commit (fixture jobs only).
+
+    The fixture suite reproduces historical bugs, so it runs the repo
+    at the commit just before the fix, not at HEAD. GitHub serves a
+    fetch by full SHA, so a depth-1 clone plus this one fetch is all
+    it takes. Only a full SHA is accepted: a branch or tag name here
+    would let a caller aim the runner at arbitrary code.
+    """
+    if not _REF.match(ref or ""):
+        raise ValueError(f"invalid ref: {ref!r}")
+    workspace = Path(workspace)
+    try:
+        subprocess.run(
+            ["git", "-C", str(workspace), "fetch", "--depth", "1", "origin", ref],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(workspace), "checkout", "--quiet", ref],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise CloneError("repo checkout failed") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise CloneError("repo checkout timed out") from exc

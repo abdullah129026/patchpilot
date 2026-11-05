@@ -11,6 +11,16 @@ def test_round_trip(tmp_path):
     assert again["issue"]["number"] == 1234
 
 
+def test_create_job_with_ref_stores_it(tmp_path):
+    job = create_job(tmp_path, "psf", "requests", 1234, ref="a" * 40)
+    assert get_job(tmp_path, job["id"])["issue"]["ref"] == "a" * 40
+
+
+def test_create_job_rejects_bad_ref(tmp_path):
+    with pytest.raises(ValueError):
+        create_job(tmp_path, "psf", "requests", 1234, ref="main")
+
+
 def test_unknown_id_returns_none(tmp_path):
     assert get_job(tmp_path, "does-not-exist") is None
 

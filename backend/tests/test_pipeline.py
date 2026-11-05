@@ -140,6 +140,79 @@ def test_clone_failure_is_setup_failed(tmp_path, monkeypatch):
     assert job["verdict"] == "SETUP_FAILED"
 
 
+def test_job_with_ref_checks_out_that_commit(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    from app.job_store import update_job
+
+    update_job(
+        tmp_path,
+        job_id,
+        issue={"owner": "acme", "repo": "demo", "number": 7, "ref": "a" * 40},
+    )
+    checked_out = []
+
+    def fake_checkout(workspace, ref):
+        checked_out.append((workspace, ref))
+
+    monkeypatch.setattr(pipeline, "checkout_ref", fake_checkout)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=FakeLLM(),
+    )
+    assert job["verdict"] == "REPRODUCED"
+    assert len(checked_out) == 1
+    assert checked_out[0][1] == "a" * 40
+
+
+def test_checkout_failure_is_setup_failed(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    from app.job_store import update_job
+
+    update_job(
+        tmp_path,
+        job_id,
+        issue={"owner": "acme", "repo": "demo", "number": 7, "ref": "a" * 40},
+    )
+
+    def failing_checkout(workspace, ref):
+        raise CloneError("checkout failed")
+
+    monkeypatch.setattr(pipeline, "checkout_ref", failing_checkout)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=FakeLLM(),
+    )
+    assert job["verdict"] == "SETUP_FAILED"
+
+
+def test_job_without_ref_does_not_check_out(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    called = []
+
+    def fake_checkout(workspace, ref):
+        called.append(ref)
+
+    monkeypatch.setattr(pipeline, "checkout_ref", fake_checkout)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=FakeLLM(),
+    )
+    assert job["verdict"] == "REPRODUCED"
+    assert called == []
+
+
 def test_timeout_is_limit_reached(tmp_path, monkeypatch):
     job_id = _setup(tmp_path, monkeypatch)
 

@@ -1,12 +1,74 @@
+import subprocess
+
 import httpx
 import pytest
 
 from app.github_client import (
+    CloneError,
     IssueFetchError,
+    checkout_ref,
     clone_repo,
     fetch_issue,
     fetch_issue_cached,
 )
+
+
+def _git(cwd, *args):
+    subprocess.run(
+        ["git", "-C", str(cwd), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def _local_repo_with_two_commits(tmp_path):
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    _git(origin, "init", "-q")
+    _git(origin, "config", "user.email", "t@example.com")
+    _git(origin, "config", "user.name", "T")
+    (origin / "file.txt").write_text("v1\n")
+    _git(origin, "add", "file.txt")
+    _git(origin, "commit", "-qm", "v1")
+    first = subprocess.run(
+        ["git", "-C", str(origin), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    (origin / "file.txt").write_text("v2\n")
+    _git(origin, "add", "file.txt")
+    _git(origin, "commit", "-qm", "v2")
+    ws = tmp_path / "ws"
+    subprocess.run(
+        ["git", "clone", "--depth", "1", "-q", str(origin), str(ws)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert (ws / "file.txt").read_text() == "v2\n"
+    return ws, first
+
+
+def test_checkout_ref_moves_to_older_commit(tmp_path):
+    ws, first = _local_repo_with_two_commits(tmp_path)
+    checkout_ref(ws, first)
+    assert (ws / "file.txt").read_text() == "v1\n"
+
+
+def test_checkout_ref_rejects_non_sha(tmp_path):
+    ws, _ = _local_repo_with_two_commits(tmp_path)
+    with pytest.raises(ValueError):
+        checkout_ref(ws, "main")
+    with pytest.raises(ValueError):
+        checkout_ref(ws, "zz" * 20)
+
+
+def test_checkout_ref_unknown_sha_raises(tmp_path):
+    ws, _ = _local_repo_with_two_commits(tmp_path)
+    with pytest.raises(CloneError):
+        checkout_ref(ws, "0" * 40)
 
 
 def _transport(payload, status=200):
