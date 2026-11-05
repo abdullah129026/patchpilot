@@ -16,6 +16,7 @@ the report keeps the capped logs.
 
 import ast
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -32,10 +33,56 @@ MAX_ATTEMPTS = config.MAX_ATTEMPTS
 # ponytail: single-file diffs only in v1. Multi-file fixes are a real
 # need, but parsing them correctly is its own project; a diff touching
 # more than one file is recorded as unverified rather than half-applied.
-_TEST_FILE = {"python": "test_patchpilot_generated.py"}
-_REPRO_COMMAND = {"python": ["python", "repro.py"]}
-_TEST_COMMAND = {
-    "python": ["python", "-m", "pytest", "test_patchpilot_generated.py", "-q"],
+_REPRO_FILE = {
+    "python": "repro.py",
+    "javascript": "repro.js",
+    "cpp": "repro.cpp",
+}
+# C++ needs a compile step before the run; the steps run in order and
+# the first non-zero result stops the sequence, so a compile failure
+# is the attempt's result, not a spent reproduction run.
+_REPRO_COMMANDS = {
+    "python": [["python", "repro.py"]],
+    "javascript": [["node", "repro.js"]],
+    "cpp": [
+        ["g++", "-std=c++17", "-O0", "-o", "repro", "repro.cpp"],
+        ["./repro"],
+    ],
+}
+_TEST_FILE = {
+    "python": "test_patchpilot_generated.py",
+    "javascript": "test_patchpilot_generated.test.js",
+    "cpp": "test_patchpilot_generated.cpp",
+}
+# Generated tests are standalone in v1 (D4 for C++): no framework
+# detection, just an exit code. The same shape works for JS, where
+# node runs the file directly instead of through a test runner.
+_TEST_COMMANDS = {
+    "python": [["python", "-m", "pytest", "test_patchpilot_generated.py", "-q"]],
+    "javascript": [["node", "test_patchpilot_generated.test.js"]],
+    "cpp": [
+        [
+            "g++",
+            "-std=c++17",
+            "-O0",
+            "-o",
+            "test_patchpilot_generated",
+            "test_patchpilot_generated.cpp",
+        ],
+        ["./test_patchpilot_generated"],
+    ],
+}
+_SCRIPT_HINT = {
+    "python": "a Python script",
+    "javascript": "a JavaScript script",
+    "cpp": "a complete standalone C++ program with main()",
+}
+_TEST_HINT = {
+    "python": "a pytest test",
+    "javascript": "a standalone script that exits non-zero when the bug is present, "
+    "no test framework",
+    "cpp": "a standalone program with main() that exits non-zero when the "
+    "bug is present, no test framework",
 }
 
 
@@ -90,13 +137,41 @@ def apply_diff(workspace: str | Path, diff: str) -> None:
     file_path.write_text("".join(out))
 
 
-def _script_is_valid(stack: str, script: str) -> bool:
+def _script_is_valid(stack: str, path: Path) -> bool:
+    """Syntax-check a generated script before a container run is spent.
+
+    # ponytail: the check runs on the workspace file (not a temp copy)
+    so C++ includes resolve against the repo, and when the local
+    toolchain is missing the check is skipped rather than faked: the
+    container run then surfaces the error, and the attempt still counts.
+    """
     if stack == "python":
         try:
-            ast.parse(script)
-        except SyntaxError:
+            ast.parse(path.read_text())
+        except (SyntaxError, OSError):
             return False
-    return True
+        return True
+    tool, command = {
+        "javascript": ("node", ["node", "--check", str(path)]),
+        "cpp": ("g++", ["g++", "-fsyntax-only", str(path)]),
+    }.get(stack, (None, None))
+    if tool is None or shutil.which(tool) is None:
+        return True
+    try:
+        proc = subprocess.run(command, cwd=path.parent, capture_output=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return True
+    return proc.returncode == 0
+
+
+def _run_steps(executor, workspace, stack, commands):
+    """Run a command sequence; the first failure stops it."""
+    result = None
+    for command in commands:
+        result = executor.run(workspace, stack, command)
+        if result.timed_out or result.exit_code not in (None, 0):
+            break
+    return result
 
 
 def _finish(store_dir, job_id, **fields):
@@ -172,7 +247,7 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
             detail="repo clone failed",
         )
     detected = stack_mod.detect(stack_mod.list_files(workspace))
-    if detected is None or detected not in _REPRO_COMMAND:
+    if detected is None or detected not in _REPRO_FILE:
         return _finish(
             store_dir,
             job_id,
@@ -211,10 +286,13 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
             limit_reached = True
             break
         script = llm.complete(
-            "Write a reproduction script for this issue. Reply with only "
-            f"the script code.\nIssue: {issue['title']}\n{issue['body'] or ''}"
+            f"Write {_SCRIPT_HINT[detected]} that reproduces this issue. "
+            "Reply with only the script code.\n"
+            f"Issue: {issue['title']}\n{issue['body'] or ''}"
         )
-        if not _script_is_valid(detected, script):
+        script_path = workspace / _REPRO_FILE[detected]
+        script_path.write_text(script)
+        if not _script_is_valid(detected, script_path):
             attempts.append(
                 {
                     "n": n,
@@ -223,12 +301,15 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
                     "script": script,
                 }
             )
+            update_job(store_dir, job_id, attempts=attempts)
             continue
-        (workspace / "repro.py").write_text(script)
-        result = executor.run(workspace, detected, _REPRO_COMMAND[detected])
+        result = _run_steps(executor, workspace, detected, _REPRO_COMMANDS[detected])
         attempts.append(
             {"n": n, "exit_code": result.exit_code, "log": result.log, "script": script}
         )
+        # Attempts are written as they land, so the live job view
+        # shows progress instead of waiting for the final verdict.
+        update_job(store_dir, job_id, attempts=attempts)
         if result.timed_out:
             limit_reached = True
             break
@@ -254,14 +335,15 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
         return _finish(store_dir, job_id, **fields)
     fields["repro_script"] = reproduced
     test = llm.complete(
-        "Write a failing test that captures this bug. Reply with only "
-        f"the test code.\nIssue: {issue['title']}\nReproduction script:\n{reproduced}"
+        f"Write {_TEST_HINT[detected]} as a failing test that captures "
+        f"this bug. Reply with only the test code.\nIssue: {issue['title']}\n"
+        f"Reproduction script:\n{reproduced}"
     )
     test_name = _TEST_FILE[detected]
     (workspace / test_name).write_text(test)
     fields["failing_test"] = test
     fields["fix_verified"] = False
-    before = executor.run(workspace, detected, _TEST_COMMAND[detected])
+    before = _run_steps(executor, workspace, detected, _TEST_COMMANDS[detected])
     if before.exit_code in (None, 0):
         # A test that already passes is not a failing test; no fix
         # is proposed off it, and no verified label is claimed.
@@ -277,6 +359,6 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
     except ValueError:
         fields["detail"] = "fix diff could not be applied cleanly; not verified"
         return _finish(store_dir, job_id, **fields)
-    after = executor.run(workspace, detected, _TEST_COMMAND[detected])
+    after = _run_steps(executor, workspace, detected, _TEST_COMMANDS[detected])
     fields["fix_verified"] = after.exit_code == 0
     return _finish(store_dir, job_id, **fields)
