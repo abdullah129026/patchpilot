@@ -13,6 +13,7 @@ the request for the founder instead of deleting on an anonymous say-so.
 import hashlib
 import hmac
 import json
+import os
 import re
 import secrets
 import shutil
@@ -28,6 +29,15 @@ _ACTIVE = {"queued", "running"}
 def _safe_name(value: str) -> None:
     if not _OWNER_REPO.match(value):
         raise ValueError(f"invalid name: {value!r}")
+
+
+def _write_report(path: Path, job: dict) -> None:
+    """Write a report atomically: a reader polling mid-update (live job
+    view, SSE stream) must never see a truncated file and 404 a job
+    that exists. os.replace on the same directory is atomic."""
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(job, indent=2))
+    os.replace(tmp, path)
 
 
 def _read_raw(store_dir: str | Path, job_id: str) -> dict | None:
@@ -85,7 +95,7 @@ def create_job(
     }
     path = Path(store_dir) / job_id
     path.mkdir(parents=True, exist_ok=False)
-    (path / "report.json").write_text(json.dumps(stored, indent=2))
+    _write_report(path / "report.json", stored)
     return {**_public(stored), "delete_token": token}
 
 
@@ -100,7 +110,7 @@ def update_job(store_dir: str | Path, job_id: str, **fields) -> dict | None:
     if job is None:
         return None
     job.update(fields)
-    (Path(store_dir) / job_id / "report.json").write_text(json.dumps(job, indent=2))
+    _write_report(Path(store_dir) / job_id / "report.json", job)
     return _public(job)
 
 
