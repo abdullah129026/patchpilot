@@ -1,5 +1,6 @@
 fastapi==0.115.6
 uvicorn==0.32.1
 httpx==0.28.1
+boto3==1.43.124
 pytest==8.3.4
 ruff==0.8.4
