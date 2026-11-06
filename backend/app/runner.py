@@ -57,6 +57,10 @@ class DockerRunner:
     def _run_container(
         self, workspace: Path, stack: str, command: list[str], network_off: bool
     ) -> RunResult:
+        # Docker treats a non-absolute -v source as a named volume, and
+        # slashes are not valid volume-name characters, so a relative
+        # workspace must be resolved before it goes into the mount.
+        workspace = Path(workspace).resolve()
         cmd = [
             self.docker,
             "run",

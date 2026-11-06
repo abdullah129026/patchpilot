@@ -1,4 +1,5 @@
 import stat
+from pathlib import Path
 
 from app.runner import DockerRunner
 
@@ -28,6 +29,19 @@ def test_run_is_network_off_capped_and_unprivileged(tmp_path):
     assert "--privileged" not in args
     assert "docker.sock" not in args
     assert "/var/run" not in args
+
+
+def test_run_resolves_relative_workspace_for_volume_mount(tmp_path, monkeypatch):
+    args_file = tmp_path / "args.txt"
+    args_file.write_text("")
+    docker = _fake_docker(tmp_path, "exit 0\n")
+    monkeypatch.chdir(tmp_path)
+    runner = DockerRunner(docker=docker, env={"FAKE_DOCKER_ARGS": str(args_file)})
+    relative_ws = Path("data/fixture-runs/job1/workspace")
+    result = runner.run(relative_ws, "python", ["python", "repro.py"])
+    assert result.exit_code == 0
+    expected = str((tmp_path / relative_ws).resolve())
+    assert f"-v {expected}:/work:rw" in args_file.read_text()
 
 
 def test_install_runs_with_network_on(tmp_path):
