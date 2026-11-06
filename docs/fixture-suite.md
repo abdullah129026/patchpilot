@@ -79,4 +79,6 @@ PATCHPILOT_BEDROCK_MODEL_ID=anthropic.claude-haiku-5-5 \
 
 The model id is printed at the top of each run, so the two runs
 arbitrate D8 on the same 10 issues. The runner exits 0 only when at
-least 3 of 10 reproduce.
+least 3 of 10 reproduce. The full guided-session runbook (deploy,
+both runs, verdict-path check, malicious drill) is
+docs/deploy/phase-3-host-runbook.md.

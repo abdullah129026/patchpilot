@@ -32,9 +32,7 @@ def load_entries(path: str | Path) -> list:
     for entry in entries:
         missing = {"owner", "repo", "number", "base_commit"} - set(entry)
         if missing:
-            raise ValueError(
-                f"fixture entry {entry} is missing {sorted(missing)}"
-            )
+            raise ValueError(f"fixture entry {entry} is missing {sorted(missing)}")
     return entries
 
 
@@ -47,7 +45,10 @@ def main() -> int:
     verdicts: dict[str, int] = {}
     for entry in entries:
         job = create_job(
-            store, entry["owner"], entry["repo"], entry["number"],
+            store,
+            entry["owner"],
+            entry["repo"],
+            entry["number"],
             ref=entry["base_commit"],
         )
         result = run_job(store, job["id"])
