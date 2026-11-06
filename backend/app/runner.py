@@ -90,6 +90,16 @@ class DockerRunner:
         ]
         if stack == "python":
             cmd += ["-e", f"PYTHONPATH={DEPS_DIR}"]
+            # Projects versioned from VCS metadata (hatch-vcs and
+            # friends) cannot detect a version in the slim container,
+            # which has no git binary, so give them a pretend one; the
+            # exact value is irrelevant to reproduction.
+            cmd += [
+                "-e",
+                "SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0",
+                "-e",
+                "VCS_VERSIONING_PRETEND_VERSION=0.0.0",
+            ]
         if network_off:
             cmd += ["--network", "none"]
         cmd += [self.image_for(stack), *command]
