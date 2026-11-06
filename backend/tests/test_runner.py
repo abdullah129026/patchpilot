@@ -1,3 +1,4 @@
+import os
 import stat
 from pathlib import Path
 
@@ -97,6 +98,16 @@ def test_python_run_gets_deps_dir_on_pythonpath(tmp_path):
     result = runner.run(tmp_path / "ws", "python", ["python", "repro.py"])
     assert result.exit_code == 0
     assert "-e PYTHONPATH=/work/.patchpilot_deps" in args_file.read_text()
+
+
+def test_run_container_runs_as_workspace_owner(tmp_path):
+    args_file = tmp_path / "args.txt"
+    args_file.write_text("")
+    docker = _fake_docker(tmp_path, "exit 0\n")
+    runner = DockerRunner(docker=docker, env={"FAKE_DOCKER_ARGS": str(args_file)})
+    result = runner.run(tmp_path / "ws", "python", ["python", "repro.py"])
+    assert result.exit_code == 0
+    assert f"--user {os.getuid()}:{os.getgid()}" in args_file.read_text()
 
 
 def test_run_timeout_is_reported_not_raised(tmp_path):

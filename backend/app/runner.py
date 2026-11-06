@@ -76,6 +76,11 @@ class DockerRunner:
             config.RUN_MEMORY,
             "--cap-drop",
             "ALL",
+            # With capabilities dropped, container root loses
+            # CAP_DAC_OVERRIDE and cannot write into a workspace owned
+            # by the host user; run as the workspace owner instead.
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
             "--pids-limit",
             "64",
             "-v",
