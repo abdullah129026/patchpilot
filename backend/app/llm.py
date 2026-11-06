@@ -43,7 +43,12 @@ class BedrockClient(LLMClient):
                 "from this host."
             ) from exc
         try:
-            client = boto3.client("bedrock-runtime")
+            # botocore ignores AWS_REGION, so pass the region explicitly
+            # or client creation dies with NoRegionError on the host.
+            region = os.environ.get("AWS_REGION") or os.environ.get(
+                "AWS_DEFAULT_REGION"
+            )
+            client = boto3.client("bedrock-runtime", region_name=region)
             resp = client.converse(
                 modelId=self.model_id,
                 messages=[{"role": "user", "content": [{"text": prompt}]}],
