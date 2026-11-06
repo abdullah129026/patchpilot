@@ -323,7 +323,9 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
         script = _strip_code_fence(
             llm.complete(
                 f"Write {_SCRIPT_HINT[detected]} that reproduces this issue. "
-                "Reply with only the script code.\n"
+                "Reply with only the script code. The script must exit "
+                "non-zero and leave the error in its output when the bug "
+                "is present; do not catch or swallow the error.\n"
                 f"Issue: {issue['title']}\n{issue['body'] or ''}"
             )
         )

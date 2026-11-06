@@ -25,6 +25,11 @@ _IMAGES = {
     "cpp": config.CPP_IMAGE,
 }
 
+# Installs land in the workspace, not the install container's own
+# site-packages: install and run are separate `docker run --rm`
+# containers, so only the mounted workspace survives between them.
+DEPS_DIR = "/work/.patchpilot_deps"
+
 
 @dataclass
 class RunResult:
@@ -78,6 +83,8 @@ class DockerRunner:
             "-w",
             "/work",
         ]
+        if stack == "python":
+            cmd += ["-e", f"PYTHONPATH={DEPS_DIR}"]
         if network_off:
             cmd += ["--network", "none"]
         cmd += [self.image_for(stack), *command]
@@ -111,13 +118,31 @@ class DockerRunner:
 
     def install(self, workspace: str | Path, stack: str) -> RunResult:
         workspace = Path(workspace)
-        if stack == "python" and (workspace / "requirements.txt").exists():
-            return self._run_container(
-                workspace,
-                stack,
-                ["pip", "install", "-r", "requirements.txt"],
-                network_off=False,
-            )
+        if stack == "python":
+            if (workspace / "pyproject.toml").exists() or (
+                workspace / "setup.py"
+            ).exists():
+                # Installing the project itself also pulls its deps.
+                return self._run_container(
+                    workspace,
+                    stack,
+                    ["pip", "install", "--target", DEPS_DIR, "."],
+                    network_off=False,
+                )
+            if (workspace / "requirements.txt").exists():
+                return self._run_container(
+                    workspace,
+                    stack,
+                    [
+                        "pip",
+                        "install",
+                        "-r",
+                        "requirements.txt",
+                        "--target",
+                        DEPS_DIR,
+                    ],
+                    network_off=False,
+                )
         if stack == "javascript" and (workspace / "package-lock.json").exists():
             return self._run_container(
                 workspace,
