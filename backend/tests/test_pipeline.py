@@ -260,3 +260,49 @@ def test_compute_verdict_underspecified():
     assert compute_verdict(None, False, underspecified=True).value == (
         "ISSUE_UNDERSPECIFIED"
     )
+
+
+class FencedLLM:
+    """FakeLLM replies wrapped the way real models wrap code."""
+
+    def complete(self, prompt):
+        reply = FakeLLM().complete(prompt)
+        if "fix diff" in prompt:
+            return reply
+        return f"```python\n{reply}```\n"
+
+
+def test_fenced_llm_code_is_unfenced_before_use(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=FencedLLM(),
+    )
+    assert job["verdict"] == "REPRODUCED"
+    # The container run was spent: the syntax check did not eat the attempt.
+    assert job["attempts"][0]["exit_code"] == 1
+    assert "```" not in job["repro_script"]
+    assert "```" not in job["failing_test"]
+    assert job["fix_verified"] is True
+
+
+def test_strip_code_fence_language_tagged():
+    assert pipeline._strip_code_fence("```python\nx = 1\n```\n") == "x = 1\n"
+
+
+def test_strip_code_fence_bare():
+    assert pipeline._strip_code_fence("```\nx = 1\n```") == "x = 1\n"
+
+
+def test_strip_code_fence_with_surrounding_prose():
+    reply = "Here is the script:\n```python\nx = 1\n```\nLet me know!\n"
+    assert pipeline._strip_code_fence(reply) == "x = 1\n"
+
+
+def test_strip_code_fence_unfenced_unchanged():
+    code = "x = 1\nprint(x)\n"
+    assert pipeline._strip_code_fence(code) == code

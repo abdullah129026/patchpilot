@@ -137,6 +137,27 @@ def apply_diff(workspace: str | Path, diff: str) -> None:
     file_path.write_text("".join(out))
 
 
+def _strip_code_fence(text: str) -> str:
+    """Return the first fenced code block in an LLM reply, else the reply.
+
+    Real models fence generated code despite being told to reply with
+    code only, and a fence line makes the written file unparseable
+    (Qwen fenced all 60 scripts in the first live fixture run, so zero
+    container runs were spent). Only the first block is taken: the
+    artifact the prompt asked for, prose around it is chat.
+    """
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            body = []
+            for rest in lines[i + 1 :]:
+                if rest.lstrip().startswith("```"):
+                    break
+                body.append(rest)
+            return "\n".join(body) + "\n" if body else ""
+    return text
+
+
 def _script_is_valid(stack: str, path: Path) -> bool:
     """Syntax-check a generated script before a container run is spent.
 
@@ -299,10 +320,12 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
         if time.monotonic() - started > config.MAX_JOB_SECONDS:
             limit_reached = True
             break
-        script = llm.complete(
-            f"Write {_SCRIPT_HINT[detected]} that reproduces this issue. "
-            "Reply with only the script code.\n"
-            f"Issue: {issue['title']}\n{issue['body'] or ''}"
+        script = _strip_code_fence(
+            llm.complete(
+                f"Write {_SCRIPT_HINT[detected]} that reproduces this issue. "
+                "Reply with only the script code.\n"
+                f"Issue: {issue['title']}\n{issue['body'] or ''}"
+            )
         )
         script_path = workspace / _REPRO_FILE[detected]
         script_path.write_text(script)
@@ -348,10 +371,12 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
     if not reproduced:
         return _finish(store_dir, job_id, **fields)
     fields["repro_script"] = reproduced
-    test = llm.complete(
-        f"Write {_TEST_HINT[detected]} as a failing test that captures "
-        f"this bug. Reply with only the test code.\nIssue: {issue['title']}\n"
-        f"Reproduction script:\n{reproduced}"
+    test = _strip_code_fence(
+        llm.complete(
+            f"Write {_TEST_HINT[detected]} as a failing test that captures "
+            f"this bug. Reply with only the test code.\nIssue: {issue['title']}\n"
+            f"Reproduction script:\n{reproduced}"
+        )
     )
     test_name = _TEST_FILE[detected]
     (workspace / test_name).write_text(test)
