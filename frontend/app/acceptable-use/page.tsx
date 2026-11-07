@@ -10,7 +10,7 @@ export default function AcceptableUse() {
         <li>Submit repositories or issues for harassment, or to reproduce exploits against systems you do not own.</li>
         <li>Evade the job ceilings (attempts, wall time, per-IP and daily caps).</li>
       </ul>
-      <p>Jobs that violate this policy are refused or deleted, and abusive sources are blocked. The abuse and copyright contact is published before launch (Phase 4 launch checklist).</p>
+      <p>Jobs that violate this policy are refused or deleted, and abusive sources are blocked. Abuse and copyright contact: <a href="mailto:abdullah129026@fluxyai.codes">abdullah129026@fluxyai.codes</a>.</p>
     </>
   );
 }

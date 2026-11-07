@@ -11,5 +11,5 @@ Do not use PatchPilot to:
 - Evade the job ceilings (attempts, wall time, per-IP and daily caps).
 
 Jobs that violate this policy are refused or deleted, and abusive
-sources are blocked. Abuse and copyright contact: to be published
-before launch (Phase 4 launch checklist).
+sources are blocked. Abuse and copyright contact:
+abdullah129026@fluxyai.codes.
