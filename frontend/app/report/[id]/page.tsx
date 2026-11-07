@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getFixture, issueUrl, type Job } from "@/lib/fixtures";
+import { track } from "@/lib/analytics";
 import {
   CodeBlock,
   CopyButton,
@@ -30,7 +31,12 @@ export default function ReportPage({ params }: { params: { id: string } }) {
   const [job, setJob] = useState<Job | null | undefined>(undefined);
 
   useEffect(() => {
-    loadJob(params.id).then(setJob);
+    loadJob(params.id).then((loaded) => {
+      setJob(loaded);
+      if (!loaded) return;
+      if (loaded.verdict) track("verdict_shown", loaded.verdict);
+      if (loaded.fixture) track("sample_report_opened");
+    });
   }, [params.id]);
 
   if (job === undefined) return <p style={{ marginTop: 40 }}>Loading report…</p>;
@@ -112,8 +118,9 @@ export default function ReportPage({ params }: { params: { id: string } }) {
       {matchedLog ? (
         <>
           <p>
-            The matched error lines below come from attempt {matchedLog.n} of
-            this job, captured inside the sandbox.
+            {job.fixture
+              ? "The matched error line below is from attempt 1 of this job, from the fixture suite run."
+              : "The matched error lines below come from attempt 1 of this job, captured inside the sandbox."}
           </p>
           <LogBlock log={matchedLog.log} />
         </>
@@ -128,7 +135,11 @@ export default function ReportPage({ params }: { params: { id: string } }) {
         <>
           <h2>Reproduction script</h2>
           <p>
-            <CopyButton text={job.repro_script} label="Copy script" />
+            <CopyButton
+              text={job.repro_script}
+              label="Copy script"
+              event="report_copied_script"
+            />
           </p>
           <CodeBlock code={job.repro_script} />
         </>
@@ -143,15 +154,29 @@ export default function ReportPage({ params }: { params: { id: string } }) {
               : "This test failed before the fix and passed after it, inside the sandbox. That transition is what the verified label below rests on."}
           </p>
           <p>
-            <CopyButton text={job.failing_test} label="Copy test" />
+            <CopyButton
+              text={job.failing_test}
+              label="Copy test"
+              event="report_copied_test"
+            />
           </p>
           <CodeBlock code={job.failing_test} />
         </>
       )}
 
       {job.fix_diff && (
-        <div className="panel suggestion" style={{ marginTop: 32 }}>
-          <h3>AI suggestion: fix diff</h3>
+        <details
+          className="panel suggestion"
+          style={{ marginTop: 32 }}
+          onToggle={(event) => {
+            if ((event.target as HTMLDetailsElement).open) {
+              track("diff_expanded");
+            }
+          }}
+        >
+          <summary>
+            <h3 style={{ display: "inline" }}>AI suggestion: fix diff</h3>
+          </summary>
           <p>
             This diff was proposed by the agent. It is a suggestion, not a
             verified correction, unless the label says otherwise.{" "}
@@ -162,7 +187,7 @@ export default function ReportPage({ params }: { params: { id: string } }) {
             )}
           </p>
           <CodeBlock code={job.fix_diff} />
-        </div>
+        </details>
       )}
 
       <Takedown jobId={job.id} fixture={job.fixture} />

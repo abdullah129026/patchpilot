@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@/lib/analytics";
 import { VERDICT_EXPLANATIONS } from "@/lib/fixtures";
 
 export function VerdictBadge({ verdict }: { verdict: string }) {
@@ -13,7 +14,15 @@ export function VerdictExplanation({ verdict }: { verdict: string }) {
   return <p>{text}</p>;
 }
 
-export function CopyButton({ text, label }: { text: string; label: string }) {
+export function CopyButton({
+  text,
+  label,
+  event,
+}: {
+  text: string;
+  label: string;
+  event?: "report_copied_script" | "report_copied_test";
+}) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -24,6 +33,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
       // is intentionally omitted; the text is visible on the page.
       return;
     }
+    if (event) track(event);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import JobForm from "@/components/JobForm";
+import TrackEvent from "@/components/TrackEvent";
 import { VerdictBadge } from "@/components/ui";
 
 const VERDICTS = [
@@ -28,6 +29,7 @@ const VERDICTS = [
 export default function Home() {
   return (
     <>
+      <TrackEvent event="landing_view" />
       <section className="hero">
         <h1>Your issue says it crashes. PatchPilot proves it.</h1>
         <p className="lede">

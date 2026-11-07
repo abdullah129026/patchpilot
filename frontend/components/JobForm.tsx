@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { track } from "@/lib/analytics";
 
 const ISSUE_URL =
   /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/\d+\/?$/;
@@ -53,6 +54,7 @@ export default function JobForm() {
         return;
       }
       const job = await res.json();
+      track("job_submitted");
       if (job.delete_token) {
         try {
           sessionStorage.setItem(`patchpilot-delete-${job.id}`, job.delete_token);

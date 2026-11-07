@@ -93,6 +93,8 @@ button.secondary:hover { border-color: var(--ink); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 20px 22px; }
 .panel.suggestion { background: var(--amber-soft); border-color: #ecd9ac; }
 .panel.suggestion h3 { margin-top: 0; }
+details.panel summary { cursor: pointer; }
+details.panel summary h3 { margin-bottom: 0; }
 
 pre.log {
   background: #101715; color: #d7e0dc; padding: 16px 18px; border-radius: 6px;

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getFixture, issueUrl, type Job } from "@/lib/fixtures";
+import { track } from "@/lib/analytics";
 import { LogBlock, VerdictBadge } from "@/components/ui";
 
 async function loadJob(id: string): Promise<Job | null> {
@@ -42,7 +43,10 @@ export default function JobPage({ params }: { params: { id: string } }) {
           const res = await fetch(`${agentUrl}/api/jobs/${id}/run`, {
             method: "POST",
           });
-          if (res.ok) setJob(await res.json());
+          if (res.ok) {
+            track("job_started");
+            setJob(await res.json());
+          }
         } catch {
           // The poll below still shows the job; a failed start is
           // visible as a job stuck in queued.
