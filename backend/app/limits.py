@@ -61,6 +61,13 @@ def _day(counters: dict, day: str) -> dict:
     return counters.setdefault("days", {}).setdefault(day, {"global": 0, "ips": {}})
 
 
+def global_today(store_dir: str | Path) -> int:
+    """Jobs submitted today, for the stats endpoint (Phase 4)."""
+    counters = _load(store_dir)
+    day = counters.get("days", {}).get(_today(), {"global": 0})
+    return day["global"]
+
+
 def usage(store_dir: str | Path, ip: str) -> dict:
     counters = _load(store_dir)
     day = counters.get("days", {}).get(_today(), {"global": 0, "ips": {}})

@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app import config, limits
+from app import config, events, limits
 from app.fixtures import FIXTURES, get_fixture
 from app.github_url import parse_issue_url
 from app.job_store import (
@@ -40,6 +40,11 @@ class TakedownRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class AnalyticsEvent(BaseModel):
+    event: str = Field(max_length=64)
+    verdict: str | None = Field(default=None, max_length=32)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="PatchPilot agent service")
     # The demo API is public by design (no accounts, D2): the Vercel
@@ -59,6 +64,23 @@ def create_app() -> FastAPI:
             "service": config.SERVICE_NAME,
             "version": config.SERVICE_VERSION,
         }
+
+    @app.get("/api/stats")
+    def stats():
+        store = config.job_dir()
+        return {
+            "events": events.event_counts(store),
+            "verdicts": events.verdict_distribution(store),
+            "jobs_today": limits.global_today(store),
+        }
+
+    @app.post("/api/events", status_code=202)
+    def record_analytics_event(body: AnalyticsEvent):
+        try:
+            events.record_event(config.job_dir(), body.event, body.verdict)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"status": "recorded"}
 
     @app.get("/api/limits")
     def limit_status(request: Request):
