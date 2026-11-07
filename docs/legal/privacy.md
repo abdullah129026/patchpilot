@@ -1,6 +1,6 @@
-# Privacy Note (DRAFT)
+# Privacy Note
 
-Status: draft for the Phase 4 human copy pass.
+Status: reviewed in the Phase 4 copy pass, 2026-11-07.
 
 - PatchPilot collects no accounts and no billing information in v1.
   Jobs live behind shareable links.

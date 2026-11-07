@@ -2,7 +2,6 @@ export default function AcceptableUse() {
   return (
     <>
       <h1 style={{ marginTop: 40 }}>Acceptable Use</h1>
-      <p className="small">Draft for the Phase 4 human copy pass.</p>
       <p>Do not use PatchPilot to:</p>
       <ul className="tight">
         <li>Run malware, miners, or attack tooling through the sandbox.</li>

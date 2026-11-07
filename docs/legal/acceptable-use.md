@@ -1,6 +1,6 @@
-# Acceptable Use (DRAFT)
+# Acceptable Use
 
-Status: draft for the Phase 4 human copy pass.
+Status: reviewed in the Phase 4 copy pass, 2026-11-07.
 
 Do not use PatchPilot to:
 

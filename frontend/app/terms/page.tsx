@@ -2,7 +2,6 @@ export default function Terms() {
   return (
     <>
       <h1 style={{ marginTop: 40 }}>Terms of Service</h1>
-      <p className="small">Draft for the Phase 4 human copy pass. Nothing here is final until that pass.</p>
       <p>PatchPilot is a free demonstration tool. You paste a public GitHub issue URL; PatchPilot attempts to reproduce the reported bug in a sandbox and shows you what it found.</p>
       <ul className="tight">
         <li>You are responsible for the repository you point at. Do not submit issues for repositories you have no legitimate reason to examine.</li>

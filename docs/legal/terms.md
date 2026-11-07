@@ -1,6 +1,6 @@
-# Terms of Service (DRAFT)
+# Terms of Service
 
-Status: draft for the Phase 4 human copy pass. Nothing here is final
+Status: reviewed in the Phase 4 copy pass, 2026-11-07.
 until that pass.
 
 PatchPilot is a free demonstration tool. You paste a public GitHub
