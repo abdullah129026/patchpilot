@@ -17,6 +17,11 @@ To wire the live agent service (job submission and real job pages), set:
 NEXT_PUBLIC_AGENT_URL=http://localhost:8000 npm run dev
 ```
 
+Set `NEXT_PUBLIC_SITE_URL` to the deployed frontend URL (in the Vercel
+project settings) so the sitemap and Open Graph metadata use the real
+domain; until it is set the sitemap stays empty rather than guessing
+one.
+
 Without it, the submission form routes to a sample report rather than faking
 a job, and the job/report pages serve the three sample jobs from the
 fixture suite.
