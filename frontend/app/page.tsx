@@ -79,30 +79,43 @@ export default function Home() {
 
       <h2 id="samples">Sample reports</h2>
       <p>
-        These are synthetic examples built to show the report shape before real
-        jobs run. The repos are fictional and the pages say so.
+        Real runs from the fixture suite (2026-11-06, Qwen3-Coder): seven of
+        ten curated issues reproduced. These three show the shape of a
+        report, hits and miss included. The{" "}
+        <Link href="/case-study">case study</Link> has the full distribution.
       </p>
       <div className="grid">
         <div className="card">
-          <h3>Reproduced: demo-python-app #42</h3>
+          <h3>Reproduced: humanize #57</h3>
           <p>
-            <VerdictBadge verdict="REPRODUCED" /> ValueError: bad key, matched
-            in the captured log.
+            <VerdictBadge verdict="REPRODUCED" /> ValueError: math domain
+            error, matched in the captured log.
           </p>
           <p>
-            <Link href="/report/fixture-reproduced">Read the report</Link> ·{" "}
-            <Link href="/jobs/fixture-reproduced">See the job run</Link>
+            <Link href="/report/sample-humanize-57">Read the report</Link> ·{" "}
+            <Link href="/jobs/sample-humanize-57">See the job run</Link>
           </p>
         </div>
         <div className="card">
-          <h3>Not reproduced: demo-python-app #43</h3>
+          <h3>Reproduced: pyflakes #764</h3>
+          <p>
+            <VerdictBadge verdict="REPRODUCED" /> TypeError: &apos;bool&apos;
+            object is not subscriptable.
+          </p>
+          <p>
+            <Link href="/report/sample-pyflakes-764">Read the report</Link> ·{" "}
+            <Link href="/jobs/sample-pyflakes-764">See the job run</Link>
+          </p>
+        </div>
+        <div className="card">
+          <h3>Not reproduced: pyflakes #744</h3>
           <p>
             <VerdictBadge verdict="NOT_REPRODUCED" /> Every attempt ran clean.
             The negative outcome, shown in full.
           </p>
           <p>
-            <Link href="/report/fixture-not-reproduced">Read the report</Link> ·{" "}
-            <Link href="/jobs/fixture-not-reproduced">See the job run</Link>
+            <Link href="/report/sample-pyflakes-744">Read the report</Link> ·{" "}
+            <Link href="/jobs/sample-pyflakes-744">See the job run</Link>
           </p>
         </div>
       </div>
@@ -121,9 +134,9 @@ export default function Home() {
       <h2>Limits, stated plainly</h2>
       <p>
         Three languages (Python, JavaScript, C++). Public repos only. One job at
-        a time, with a daily job ceiling while the demo runs on a free LLM tier.
-        A suggested fix is never claimed correct beyond the one verified test
-        transition on its report.
+        a time, with a daily job ceiling while the demo runs on a small
+        inference budget. A suggested fix is never claimed correct beyond the
+        one verified test transition on its report.
       </p>
     </>
   );

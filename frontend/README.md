@@ -18,7 +18,8 @@ NEXT_PUBLIC_AGENT_URL=http://localhost:8000 npm run dev
 ```
 
 Without it, the submission form routes to a sample report rather than faking
-a job, and the job/report pages serve the two fixture jobs.
+a job, and the job/report pages serve the three sample jobs from the
+fixture suite.
 
 ## Build
 

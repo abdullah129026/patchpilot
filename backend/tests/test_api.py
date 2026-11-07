@@ -26,6 +26,38 @@ def test_fixture_list_and_detail(tmp_path, monkeypatch):
     assert c.get("/api/jobs/fixtures/no-such-fixture").status_code == 404
 
 
+def test_sample_fixtures_match_curated_fixture_file(tmp_path, monkeypatch):
+    # Samples must stay real: every sample issue is one of the curated
+    # fixtures, with the verdict the host suite recorded for it.
+    import json
+    from pathlib import Path
+
+    curated = json.loads(
+        (
+            Path(__file__).resolve().parents[2] / "scripts" / "fixture_issues.json"
+        ).read_text()
+    )
+    by_key = {(e["owner"], e["repo"], e["number"]): e for e in curated}
+    recorded = {
+        ("python-humanize", "humanize", 57): "REPRODUCED",
+        ("PyCQA", "pyflakes", 764): "REPRODUCED",
+        ("PyCQA", "pyflakes", 744): "NOT_REPRODUCED",
+    }
+    c = client(tmp_path, monkeypatch)
+    listed = c.get("/api/jobs/fixtures").json()
+    assert len(listed) == 3
+    for sample in listed:
+        key = (
+            sample["issue"]["owner"],
+            sample["issue"]["repo"],
+            sample["issue"]["number"],
+        )
+        assert key in by_key, f"sample {sample['id']} is not a curated fixture"
+        assert sample["verdict"] == recorded[key]
+        assert sample["signature"] == by_key[key]["error_signature"]
+        assert sample["fix_diff"] is None
+
+
 def test_create_job_validates_url_and_persists(tmp_path, monkeypatch):
     c = client(tmp_path, monkeypatch)
     created = c.post("/api/jobs", json={"issue_url": "https://github.com/a/b/issues/9"})

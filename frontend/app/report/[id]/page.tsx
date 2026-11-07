@@ -54,8 +54,12 @@ export default function ReportPage({ params }: { params: { id: string } }) {
         {job.fixture && (
           <div className="notice">
             <p>
-              Sample report. Synthetic data, fictional repository, built to show
-              the report shape. Nothing here claims a real reproduction.
+              Sample report from the fixture suite run on 2026-11-06
+              (Qwen3-Coder, 7 of 10 reproduced). The issue, error, and
+              verdict are from the real run; the script and test are the
+              recorded reproduction from the fixture. No fix diff is shown:
+              the run&apos;s suggested diff is not stored here.{" "}
+              <Link href="/case-study">Read the case study</Link>.
             </p>
           </div>
         )}
@@ -134,8 +138,9 @@ export default function ReportPage({ params }: { params: { id: string } }) {
         <>
           <h2>Failing test</h2>
           <p>
-            This test failed before the fix and passed after it, inside the
-            sandbox. That transition is what the verified label below rests on.
+            {job.fixture
+              ? "This test expresses the recorded reproduction. During fixture curation it failed at the base commit and passed at the fix commit."
+              : "This test failed before the fix and passed after it, inside the sandbox. That transition is what the verified label below rests on."}
           </p>
           <p>
             <CopyButton text={job.failing_test} label="Copy test" />

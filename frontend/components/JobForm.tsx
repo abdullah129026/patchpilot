@@ -36,7 +36,7 @@ export default function JobForm() {
     if (!agentUrl) {
       // No agent service wired in this build: the honest demo path is a
       // sample report, not a fake job.
-      router.push("/report/fixture-reproduced");
+      router.push("/report/sample-humanize-57");
       return;
     }
     setBusy(true);

@@ -102,7 +102,7 @@ export default function JobPage({ params }: { params: { id: string } }) {
       <section style={{ marginTop: 40 }}>
         <p className="small">
           Job <span className="mono">{job.id}</span>
-          {job.fixture && " · sample job, synthetic data"}
+          {job.fixture && " · sample job from the fixture suite"}
         </p>
         <h1>
           <a href={issueUrl(job)} target="_blank" rel="noreferrer">
@@ -125,7 +125,7 @@ export default function JobPage({ params }: { params: { id: string } }) {
             <p>
               This job is queued and starts automatically; one job runs at
               a time. Sample jobs show the full click path:{" "}
-              <Link href="/jobs/fixture-reproduced">fixture-reproduced</Link>.
+              <Link href="/jobs/sample-humanize-57">sample-humanize-57</Link>.
               {job.queue_position !== undefined && job.queue_position > 1 && (
                 <>
                   {" "}Position {job.queue_position} in the queue.
