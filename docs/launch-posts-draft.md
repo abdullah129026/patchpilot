@@ -1,12 +1,17 @@
-# Launch posts (DRAFT — for Abdullah's approval, do not post yet)
+# Launch posts (APPROVED by Abdullah in chat 2026-11-07 — do not post yet)
 
-Hold: the live service still points at the Haiku model id, which the
-account cannot call. These posts go out only after the host step in
-the progress file is done (switch PATCHPILOT_BEDROCK_MODEL_ID to
-qwen.qwen3-coder-30b-a3b-v1:0 and restart the service). All numbers
-below are from the real fixture run on 2026-11-06, Qwen3-Coder-30B,
-7 of 10 reproduced. Nothing here is a claim the case study does not
-already back up.
+Hold lifted 2026-11-08: the model-id switch is done (Qwen3-Coder live
+on the host since 2026-11-07) and the frontend is deployed. The posts
+below are approved as written; post them only from the main chat.
+Links to use when posting:
+- Live demo: https://patchpilot-shah20.vercel.app
+- Case study: https://patchpilot-shah20.vercel.app/case-study
+- Sample report: https://patchpilot-shah20.vercel.app/report/sample-humanize-57
+- Repo: https://github.com/abdullah129026/patchpilot
+
+All numbers below are from the real fixture run on 2026-11-06,
+Qwen3-Coder-30B, 7 of 10 reproduced. Nothing here is a claim the case
+study does not already back up.
 
 ## LinkedIn
 
