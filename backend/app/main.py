@@ -72,6 +72,7 @@ def create_app() -> FastAPI:
             "events": events.event_counts(store),
             "verdicts": events.verdict_distribution(store),
             "jobs_today": limits.global_today(store),
+            "tokens": events.token_totals(store),
             "ceiling_stops_today": limits.rejections_today(store),
         }
 

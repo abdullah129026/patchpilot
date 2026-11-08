@@ -20,6 +20,11 @@ class ProviderUnavailable(Exception):
 
 
 class LLMClient:
+    # Usage of the last complete() call, {"input": n, "output": n},
+    # when the provider reports it; None when it does not. The pipeline
+    # sums it into the job record for the stats endpoint (Phase 4).
+    last_usage: dict | None = None
+
     def complete(self, prompt: str) -> str:
         raise NotImplementedError
 
@@ -52,6 +57,15 @@ class BedrockClient(LLMClient):
             resp = client.converse(
                 modelId=self.model_id,
                 messages=[{"role": "user", "content": [{"text": prompt}]}],
+            )
+            usage = resp.get("usage") or {}
+            self.last_usage = (
+                {
+                    "input": usage.get("inputTokens", 0),
+                    "output": usage.get("outputTokens", 0),
+                }
+                if usage
+                else None
             )
             return "".join(
                 block.get("text", "") for block in resp["output"]["message"]["content"]
@@ -89,7 +103,17 @@ class GroqClient(LLMClient):
         if resp.status_code != 200:
             raise ProviderUnavailable(f"Groq returned {resp.status_code}")
         try:
-            return resp.json()["choices"][0]["message"]["content"]
+            data = resp.json()
+            usage = data.get("usage") or {}
+            self.last_usage = (
+                {
+                    "input": usage.get("prompt_tokens", 0),
+                    "output": usage.get("completion_tokens", 0),
+                }
+                if usage
+                else None
+            )
+            return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, ValueError) as exc:
             raise ProviderUnavailable("Groq returned an unexpected shape") from exc
 

@@ -80,6 +80,47 @@ def test_reproduced_with_verified_fix(tmp_path, monkeypatch):
     assert job["attempts"][0]["exit_code"] == 1
 
 
+class CountingLLM(FakeLLM):
+    """FakeLLM that reports 10 in / 5 out on every call, like a real
+    provider's usage field."""
+
+    def __init__(self):
+        self.last_usage = None
+
+    def complete(self, prompt):
+        self.last_usage = {"input": 10, "output": 5}
+        return super().complete(prompt)
+
+
+def test_reproduced_job_records_tokens_used(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=CountingLLM(),
+    )
+    assert job["verdict"] == "REPRODUCED"
+    # Three LLM calls (script, test, diff) at 15 tokens each.
+    assert job["tokens_used"] == 45
+
+
+def test_job_without_reported_usage_records_zero_tokens(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=FakeLLM(),
+    )
+    assert job["verdict"] == "REPRODUCED"
+    assert job["tokens_used"] == 0
+
+
 def test_not_reproduced_when_scripts_exit_clean(tmp_path, monkeypatch):
     job_id = _setup(tmp_path, monkeypatch)
 

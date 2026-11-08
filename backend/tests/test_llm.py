@@ -12,13 +12,16 @@ def test_bedrock_without_model_id_is_unavailable(monkeypatch):
         BedrockClient(model_id="")
 
 
-def _fake_boto3(monkeypatch):
+def _fake_boto3(monkeypatch, usage=None):
     """Install a fake boto3 that records how client() was called."""
     calls = {}
 
     class FakeBedrock:
         def converse(self, **kwargs):
-            return {"output": {"message": {"content": [{"text": "hi"}]}}}
+            resp = {"output": {"message": {"content": [{"text": "hi"}]}}}
+            if usage is not None:
+                resp["usage"] = usage
+            return resp
 
     fake = types.ModuleType("boto3")
 
@@ -63,3 +66,48 @@ def test_groq_without_key_is_unavailable(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     with pytest.raises(ProviderUnavailable):
         GroqClient(api_key="")
+
+
+def test_bedrock_records_token_usage(monkeypatch):
+    _fake_boto3(monkeypatch, usage={"inputTokens": 100, "outputTokens": 20})
+    client = BedrockClient(model_id="m")
+    assert client.complete("hello") == "hi"
+    assert client.last_usage == {"input": 100, "output": 20}
+
+
+def test_bedrock_without_usage_leaves_last_usage_empty(monkeypatch):
+    _fake_boto3(monkeypatch)
+    client = BedrockClient(model_id="m")
+    assert client.complete("hello") == "hi"
+    assert client.last_usage is None
+
+
+def test_groq_records_token_usage(monkeypatch):
+    import httpx
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "choices": [{"message": {"content": "hi"}}],
+                "usage": {"prompt_tokens": 50, "completion_tokens": 10},
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, *args, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(httpx, "Client", FakeClient)
+    client = GroqClient(api_key="k")
+    assert client.complete("hello") == "hi"
+    assert client.last_usage == {"input": 50, "output": 10}

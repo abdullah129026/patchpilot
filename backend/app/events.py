@@ -63,6 +63,29 @@ def event_counts(store_dir: str | Path) -> dict:
     return counts
 
 
+def token_totals(store_dir: str | Path) -> dict:
+    """Tokens spent across jobs, from the tokens_used each job record
+    carries (Phase 0 section 0.5 server-side counters). Jobs that never
+    reached the LLM, or whose provider reported no usage, are not
+    counted: an average over unknown numbers would be a fabrication."""
+    root = Path(store_dir)
+    total = 0
+    jobs = 0
+    if root.is_dir():
+        for child in root.iterdir():
+            if not child.is_dir():
+                continue
+            try:
+                job = json.loads((child / "report.json").read_text())
+            except (OSError, ValueError):
+                continue
+            used = job.get("tokens_used")
+            if isinstance(used, int):
+                total += used
+                jobs += 1
+    return {"total": total, "jobs": jobs, "average": total // jobs if jobs else 0}
+
+
 def verdict_distribution(store_dir: str | Path) -> dict:
     root = Path(store_dir)
     distribution: dict[str, int] = {}

@@ -2,7 +2,13 @@
 
 from fastapi.testclient import TestClient
 
-from app.events import EVENTS, event_counts, record_event, verdict_distribution
+from app.events import (
+    EVENTS,
+    event_counts,
+    record_event,
+    token_totals,
+    verdict_distribution,
+)
 from app.main import create_app
 
 
@@ -66,6 +72,22 @@ def test_events_endpoint_accepts_and_rejects(tmp_path, monkeypatch):
     assert bad_verdict.status_code == 422
 
 
+def test_token_totals_sum_job_reports(tmp_path):
+    from app.job_store import create_job, update_job
+
+    first = create_job(tmp_path, "a", "b", 1)
+    update_job(tmp_path, first["id"], status="done", tokens_used=100)
+    second = create_job(tmp_path, "a", "b", 2)
+    update_job(tmp_path, second["id"], status="done", tokens_used=50)
+    third = create_job(tmp_path, "a", "b", 3)
+    update_job(tmp_path, third["id"], status="done")
+    assert token_totals(tmp_path) == {"total": 150, "jobs": 2, "average": 75}
+
+
+def test_token_totals_empty_store(tmp_path):
+    assert token_totals(tmp_path) == {"total": 0, "jobs": 0, "average": 0}
+
+
 def test_stats_endpoint_counts_events_verdicts_and_jobs_today(tmp_path, monkeypatch):
     c = client(tmp_path, monkeypatch)
     c.post("/api/events", json={"event": "landing_view"})
@@ -85,3 +107,34 @@ def test_stats_endpoint_counts_events_verdicts_and_jobs_today(tmp_path, monkeypa
     update_job(tmp_path, created.json()["id"], status="done", verdict="REPRODUCED")
     assert c.get("/api/stats").json()["verdicts"] == {"REPRODUCED": 1}
     assert verdict_distribution(tmp_path) == {"REPRODUCED": 1}
+
+
+def test_stats_endpoint_reports_tokens_and_ceiling_stops(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch)
+    from app.job_store import update_job
+
+    created = c.post("/api/jobs", json={"issue_url": "https://github.com/a/b/issues/9"})
+    assert created.status_code == 201
+    update_job(tmp_path, created.json()["id"], tokens_used=120)
+    # Fill the global ceiling (3/day) from other addresses, then one
+    # more submission is stopped and counted.
+    for i in (2, 3):
+        assert (
+            c.post(
+                "/api/jobs",
+                json={"issue_url": "https://github.com/a/b/issues/9"},
+                headers={"X-Forwarded-For": f"203.0.113.{i}"},
+            ).status_code
+            == 201
+        )
+    assert (
+        c.post(
+            "/api/jobs",
+            json={"issue_url": "https://github.com/a/b/issues/9"},
+            headers={"X-Forwarded-For": "203.0.113.99"},
+        ).status_code
+        == 429
+    )
+    body = c.get("/api/stats").json()
+    assert body["tokens"] == {"total": 120, "jobs": 1, "average": 120}
+    assert body["ceiling_stops_today"] == {"global": 1}

@@ -199,6 +199,14 @@ def _finish(store_dir, job_id, **fields):
     return update_job(store_dir, job_id, **fields)
 
 
+def _charge(llm, total: int) -> int:
+    """Add the last LLM call's reported usage to the running total.
+    A client that reports nothing (fake in tests, a provider that
+    omits usage) adds zero rather than breaking the job."""
+    usage = getattr(llm, "last_usage", None) or {}
+    return total + usage.get("input", 0) + usage.get("output", 0)
+
+
 def run_job(store_dir, job_id, *, issue=None, clone_fn=None, executor=None, llm=None):
     """Run one job's pipeline to a verdict. Returns the public job."""
     job = get_job(store_dir, job_id)
@@ -213,7 +221,7 @@ def run_job(store_dir, job_id, *, issue=None, clone_fn=None, executor=None, llm=
             llm = None
     started = time.monotonic()
     workspace = Path(store_dir) / job_id / "workspace"
-    update_job(store_dir, job_id, status="running")
+    update_job(store_dir, job_id, status="running", tokens_used=0)
     try:
         return _run(
             store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, started
@@ -316,6 +324,7 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
             "is claimed for this job.",
         )
     attempts, limit_reached, reproduced = [], False, None
+    tokens_used = 0
     for n in range(1, MAX_ATTEMPTS + 1):
         if time.monotonic() - started > config.MAX_JOB_SECONDS:
             limit_reached = True
@@ -329,6 +338,8 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
                 f"Issue: {issue['title']}\n{issue['body'] or ''}"
             )
         )
+        tokens_used = _charge(llm, tokens_used)
+        update_job(store_dir, job_id, tokens_used=tokens_used)
         script_path = workspace / _REPRO_FILE[detected]
         script_path.write_text(script)
         if not _script_is_valid(detected, script_path):
@@ -380,6 +391,8 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
             f"Reproduction script:\n{reproduced}"
         )
     )
+    tokens_used = _charge(llm, tokens_used)
+    update_job(store_dir, job_id, tokens_used=tokens_used)
     test_name = _TEST_FILE[detected]
     (workspace / test_name).write_text(test)
     fields["failing_test"] = test
@@ -394,6 +407,8 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
         "Write a fix diff for this bug. Reply with only the unified "
         f"diff.\nIssue: {issue['title']}\nFailing test:\n{test}"
     )
+    tokens_used = _charge(llm, tokens_used)
+    update_job(store_dir, job_id, tokens_used=tokens_used)
     fields["fix_diff"] = diff
     try:
         apply_diff(workspace, diff)
