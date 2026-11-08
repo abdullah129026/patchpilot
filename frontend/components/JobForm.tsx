@@ -12,7 +12,11 @@ export default function JobForm() {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [limits, setLimits] = useState<{ daily_used: number; daily_ceiling: number } | null>(null);
+  const [limits, setLimits] = useState<{
+    daily_used: number;
+    daily_ceiling: number;
+    paused?: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const agentUrl = process.env.NEXT_PUBLIC_AGENT_URL;
@@ -71,6 +75,14 @@ export default function JobForm() {
 
   return (
     <>
+    {limits?.paused && (
+      <div className="notice">
+        <p>
+          PatchPilot is paused right now. No new jobs are accepted until the
+          demo resumes. The sample reports below still work.
+        </p>
+      </div>
+    )}
     <form className="job-form" onSubmit={submit}>
       <input
         type="text"
@@ -78,8 +90,9 @@ export default function JobForm() {
         onChange={(event) => setUrl(event.target.value)}
         placeholder="https://github.com/owner/repo/issues/123"
         aria-label="Public GitHub issue URL"
+        disabled={limits?.paused}
       />
-      <button type="submit" className="primary" disabled={busy}>
+      <button type="submit" className="primary" disabled={busy || limits?.paused}>
         {busy ? "Submitting…" : "Reproduce it"}
       </button>
       {error && <p className="error">{error}</p>}

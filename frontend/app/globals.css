@@ -121,6 +121,14 @@ pre.code {
 
 ul.tight li { margin-bottom: 6px; }
 
+ol.attempts { list-style: none; padding: 0; margin: 16px 0; }
+ol.attempts li {
+  border-left: 2px solid var(--line);
+  padding: 2px 0 2px 14px;
+  margin-bottom: 10px;
+}
+ol.attempts li.matched { border-left-color: var(--accent); }
+
 .stack-form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .stack-form input, .stack-form textarea {
   padding: 11px 13px; font-size: 15px; border: 1px solid var(--line);

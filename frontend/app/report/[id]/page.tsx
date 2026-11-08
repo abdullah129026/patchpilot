@@ -119,8 +119,8 @@ export default function ReportPage({ params }: { params: { id: string } }) {
         <>
           <p>
             {job.fixture
-              ? "The matched error line below is from attempt 1 of this job, from the fixture suite run."
-              : "The matched error lines below come from attempt 1 of this job, captured inside the sandbox."}
+              ? `The matched error line below is from attempt ${matchedLog.n} of this job, from the fixture suite run.`
+              : `The matched error lines below come from attempt ${matchedLog.n} of this job, captured inside the sandbox.`}
           </p>
           <LogBlock log={matchedLog.log} />
         </>
@@ -129,6 +129,36 @@ export default function ReportPage({ params }: { params: { id: string } }) {
           No attempt produced the reported error. The full attempt logs are on
           the <Link href={`/jobs/${job.id}`}>job page</Link>.
         </p>
+      )}
+
+      {job.attempts.length > 0 && (
+        <>
+          <h2>Attempts</h2>
+          <p>
+            What the agent tried, in order. The verdict rests on the matched
+            attempt above, not on any single try.
+          </p>
+          <ol className="attempts">
+            {job.attempts.map((attempt) => {
+              const matched =
+                job.signature != null && attempt.log.includes(job.signature);
+              return (
+                <li key={attempt.n} className={matched ? "matched" : undefined}>
+                  <strong>Attempt {attempt.n}</strong>
+                  {": "}
+                  {attempt.exit_code === null
+                    ? "script failed the syntax check, so no container run was spent"
+                    : matched
+                      ? `exited ${attempt.exit_code} and matched the reported error`
+                      : attempt.exit_code === 0
+                        ? "exited clean, the bug did not show up"
+                        : `exited ${attempt.exit_code} without the reported error`}
+                  .
+                </li>
+              );
+            })}
+          </ol>
+        </>
       )}
 
       {job.repro_script && (
