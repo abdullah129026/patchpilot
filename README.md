@@ -6,26 +6,36 @@ a failing test, and a suggested fix diff, with captured logs as proof.
 
 ## Status
 
-Phase 1 (Foundation and Core Systems) is in progress under the Project
-Phase Blueprint: phase-gated, no day slicing, and a completed phase never
-advances without the founder's approval.
+Live demo: https://patchpilot-shah20.vercel.app (frontend on Vercel).
+The agent service runs on the EC2 Docker host; it is not yet wired to
+the public frontend, so live job submission waits on a public agent
+endpoint. Sample reports and the case study work now.
 
-What exists now (foundation only):
+Phase 4 (Polish, Landing and Launch Surface) is in progress under the
+Project Phase Blueprint: phase-gated, no day slicing, and a completed
+phase never advances without the founder's approval. Phases 0-3 are
+approved. Phase 3 measured 7 of 10 curated Python issues reproduced
+live on the host (Qwen3-Coder), with the misses published in the case
+study.
 
-- Agent service skeleton (FastAPI): health, fixture jobs, validated job
-  submission into a filesystem job store.
+What exists now:
+
+- Agent service (FastAPI): health, fixture jobs, validated job
+  submission, the Docker reproduction loop with deterministic verdicts,
+  per-IP and global daily ceilings, submitter deletion and takedown
+  requests, a kill switch, and server-side counters.
 - Deterministic verdict engine: verdicts are computed from exit codes
   and error-signature matches, never written by the LLM.
-- Strict public GitHub issue URL validation, before any fetch or clone.
+- Frontend (Next.js): landing, live job view, report pages with an
+  attempt timeline, sample reports from the real fixture run, case
+  study, analytics events, SEO basics.
 - CI running tests and lint on every push.
 - Host rebuild script for the EC2 Docker host (provisioning itself is
   done in the AWS console, see `docs/deploy/ec2-setup.md`).
-- Drafts of the Terms, Acceptable Use, and privacy pages in `docs/legal/`.
 
-Deliberately not built yet: the experience design and page build slices
-of Phase 1 wait for the D5 validation gate (5 maintainer conversations,
-or an explicit waiver from the founder). The reproduction loop, Docker
-runner, ceilings, and takedown path belong to Phases 2 and 3.
+Deliberately not built yet: live job submission from the public site
+(needs a public agent endpoint, a host step), and Phases 5 (QA,
+Security, Performance) and 6 (Launch).
 
 ## Run the agent service locally
 
