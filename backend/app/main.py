@@ -72,6 +72,7 @@ def create_app() -> FastAPI:
             "events": events.event_counts(store),
             "verdicts": events.verdict_distribution(store),
             "jobs_today": limits.global_today(store),
+            "ceiling_stops_today": limits.rejections_today(store),
         }
 
     @app.post("/api/events", status_code=202)
@@ -87,7 +88,12 @@ def create_app() -> FastAPI:
         store = config.job_dir()
         used = limits.usage(store, limits.client_ip(request))
         active = count_active_jobs(store)
-        return {**used, "active_jobs": active, "queue_position_for_next": active + 1}
+        return {
+            **used,
+            "active_jobs": active,
+            "queue_position_for_next": active + 1,
+            "paused": limits.is_paused(store),
+        }
 
     @app.get("/api/jobs/fixtures")
     def fixture_list():
@@ -111,7 +117,10 @@ def create_app() -> FastAPI:
         try:
             limits.check_limits(store, ip)
         except limits.LimitExceeded as exc:
-            raise HTTPException(status_code=429, detail=exc.message) from exc
+            limits.record_rejection(store, exc.kind)
+            raise HTTPException(
+                status_code=exc.status_code, detail=exc.message
+            ) from exc
         job = create_job(store, owner, repo, number)
         limits.record_submission(store, ip)
         return job
@@ -121,6 +130,12 @@ def create_app() -> FastAPI:
         job = get_job(config.job_dir(), job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="job not found")
+        if limits.is_paused(config.job_dir()):
+            raise HTTPException(
+                status_code=503,
+                detail="PatchPilot is paused right now. Queued jobs cannot "
+                "start until the founder resumes the demo.",
+            )
         if job.get("status") != "queued":
             raise HTTPException(status_code=409, detail="only queued jobs can be run")
         # A job runs for minutes; the caller watches it live instead of

@@ -42,6 +42,7 @@ host holds no unique state beyond the current job directories.
 
 ## Kill switch
 
-To stop all job processing immediately: `sudo systemctl stop
-patchpilot-agent`. That is the documented abuse kill switch until
-Phase 2 adds the ceiling controls.
+Two levels, both documented in `docs/deploy/kill-switch.md`: pause new
+jobs with `sudo touch /opt/patchpilot/jobs/.paused` (service stays up,
+submissions get 503), or stop everything with `sudo systemctl stop
+patchpilot-agent`.

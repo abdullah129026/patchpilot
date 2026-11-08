@@ -5,6 +5,11 @@ token cap, and a per-address daily ceiling. Counts live in a single
 counters file inside the job store, never in a job report, so the read
 endpoint cannot leak them. Addresses are hashed before storage: the
 counter needs to tell addresses apart, it does not need to keep them.
+
+Phase 4 adds the kill switch: a `.paused` file in the job store
+refuses new submissions and queued-job starts until it is removed.
+There is no API to pause: v1 has no accounts, so a public pause
+switch would be an abuse vector of its own.
 """
 
 import hashlib
@@ -19,10 +24,16 @@ _LOCK = threading.Lock()
 
 
 class LimitExceeded(Exception):
-    def __init__(self, kind: str, message: str):
+    def __init__(self, kind: str, message: str, status_code: int = 429):
         super().__init__(message)
         self.kind = kind
         self.message = message
+        self.status_code = status_code
+
+
+def is_paused(store_dir: str | Path) -> bool:
+    """True while the founder's `.paused` file sits in the job store."""
+    return (Path(store_dir) / ".paused").exists()
 
 
 def client_ip(request) -> str:
@@ -81,6 +92,13 @@ def usage(store_dir: str | Path, ip: str) -> dict:
 
 
 def check_limits(store_dir: str | Path, ip: str) -> None:
+    if is_paused(store_dir):
+        raise LimitExceeded(
+            "paused",
+            "PatchPilot is paused right now. No new jobs are accepted "
+            "until the founder resumes the demo.",
+            status_code=503,
+        )
     used = usage(store_dir, ip)
     if used["daily_used"] >= config.DAILY_JOB_CEILING:
         raise LimitExceeded(
@@ -105,3 +123,19 @@ def record_submission(store_dir: str | Path, ip: str) -> dict:
         day["ips"][key] = day["ips"].get(key, 0) + 1
         _save(store_dir, counters)
     return usage(store_dir, ip)
+
+
+def record_rejection(store_dir: str | Path, kind: str) -> None:
+    """Count a refused submission by kind, for the stats endpoint."""
+    with _LOCK:
+        counters = _load(store_dir)
+        day = _day(counters, _today())
+        rejected = day.setdefault("rejected", {})
+        rejected[kind] = rejected.get(kind, 0) + 1
+        _save(store_dir, counters)
+
+
+def rejections_today(store_dir: str | Path) -> dict:
+    counters = _load(store_dir)
+    day = counters.get("days", {}).get(_today(), {})
+    return dict(day.get("rejected", {}))
