@@ -17,9 +17,13 @@ export default function JobForm() {
     daily_ceiling: number;
     paused?: boolean;
   } | null>(null);
+  // False when this build has no agent service wired in, so the form can
+  // say so up front instead of silently showing a sample report.
+  const [agentConfigured, setAgentConfigured] = useState(true);
 
   useEffect(() => {
     const agentUrl = process.env.NEXT_PUBLIC_AGENT_URL;
+    setAgentConfigured(Boolean(agentUrl));
     if (!agentUrl) return;
     fetch(`${agentUrl}/api/limits`)
       .then((res) => (res.ok ? res.json() : null))
@@ -97,6 +101,13 @@ export default function JobForm() {
       </button>
       {error && <p className="error">{error}</p>}
     </form>
+    {!agentConfigured && (
+      <p className="form-note">
+        Live job submission is not connected yet, so submitting here opens a
+        sample report for now. Live submissions open once the agent service
+        has a public address.
+      </p>
+    )}
     {limits && (
       <p className="form-note">
         Daily jobs used: {limits.daily_used} of {limits.daily_ceiling}. One
