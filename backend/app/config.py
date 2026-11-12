@@ -28,9 +28,9 @@ GROQ_MODEL = _os.environ.get("PATCHPILOT_GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Pinned base images per stack (major-version tags; digest pinning is
 # a Phase 5 hardening item, recorded in the progress file).
-PYTHON_IMAGE = "python:3.12-slim"
-NODE_IMAGE = "node:22-slim"
-CPP_IMAGE = "gcc:13"
+PYTHON_IMAGE = "python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b"
+NODE_IMAGE = "node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee"
+CPP_IMAGE = "gcc:13@sha256:8c0fe724784c6d617cb582f79ddaf5dd2233aaba2fb7a14e0b9d03348fea8088"
 RUN_CPUS = "1"
 RUN_MEMORY = "512m"
 RUN_TIMEOUT_SECONDS = 300
