@@ -142,6 +142,19 @@ def apply_diff(workspace: str | Path, diff: str) -> None:
     file_path.write_text("".join(out))
 
 
+def _issue_excerpt(issue: dict) -> str:
+    """Issue text for LLM prompts, capped at MAX_PROMPT_ISSUE_CHARS.
+
+    The analyzer reads the full body to extract the signature, so the
+    cap never hides the error from the verdict; it only keeps a
+    pathological body out of the prompt.
+    """
+    body = issue.get("body") or ""
+    if len(body) > config.MAX_PROMPT_ISSUE_CHARS:
+        body = body[: config.MAX_PROMPT_ISSUE_CHARS] + "\n[issue body truncated]"
+    return f"Issue: {issue['title']}\n{body}"
+
+
 def _strip_code_fence(text: str) -> str:
     """Return the first fenced code block in an LLM reply, else the reply.
 
@@ -349,7 +362,7 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
                 "Reply with only the script code. The script must exit "
                 "non-zero and leave the error in its output when the bug "
                 "is present; do not catch or swallow the error.\n"
-                f"Issue: {issue['title']}\n{issue['body'] or ''}"
+                f"{_issue_excerpt(issue)}"
             )
         )
         tokens_used = _charge(llm, tokens_used)
@@ -415,7 +428,7 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
     test = _strip_code_fence(
         llm.complete(
             f"Write {_TEST_HINT[detected]} as a failing test that captures "
-            f"this bug. Reply with only the test code.\nIssue: {issue['title']}\n"
+            f"this bug. Reply with only the test code.\n{_issue_excerpt(issue)}\n"
             f"Reproduction script:\n{reproduced}"
         )
     )

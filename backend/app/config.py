@@ -35,6 +35,10 @@ RUN_CPUS = "1"
 RUN_MEMORY = "512m"
 RUN_TIMEOUT_SECONDS = 300
 MAX_LOG_CHARS = 20000
+# LLM prompts carry a windowed excerpt of the issue body, never the
+# whole thing: a pathological body must not blow the context window
+# on the first call. The analyzer still reads the full body.
+MAX_PROMPT_ISSUE_CHARS = 6000
 
 SERVICE_NAME = "patchpilot-agent"
 SERVICE_VERSION = "0.1.0"

@@ -466,3 +466,48 @@ def test_rate_limited_fetch_is_setup_failed_with_honest_detail(tmp_path, monkeyp
     )
     assert job["verdict"] == "SETUP_FAILED"
     assert "rate-limit" in (job.get("detail") or "")
+
+
+def test_issue_excerpt_caps_a_pathological_body():
+    body = "x" * 20_000
+    excerpt = pipeline._issue_excerpt({"title": "Crash", "body": body})
+    assert len(excerpt) <= 6_100
+    assert "[issue body truncated]" in excerpt
+    assert excerpt.startswith("Issue: Crash\n" + "x" * 100)
+
+
+def test_issue_excerpt_leaves_short_bodies_alone():
+    assert pipeline._issue_excerpt(ISSUE) == (
+        "Issue: Crash on empty config\nTraceback:\nValueError: bad key\n"
+    )
+
+
+def test_prompt_cap_does_not_hide_the_signature_from_analysis(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+
+    class RecordingLLM(FakeLLM):
+        def __init__(self):
+            self.prompts = []
+
+        def complete(self, prompt):
+            self.prompts.append(prompt)
+            return super().complete(prompt)
+
+    llm = RecordingLLM()
+    # The error line sits past the prompt cap, so the LLM never sees
+    # it; the analyzer reads the full body, so the job still finds it.
+    body = "filler\n" * 1000 + "Traceback:\nValueError: bad key\n"
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue={"title": "Crash on empty config", "body": body},
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=llm,
+    )
+    assert job["verdict"] == "REPRODUCED"
+    assert job["signature"] == "ValueError: bad key"
+    assert all("Traceback" not in prompt for prompt in llm.prompts)
+    # The two prompts that carry the issue body are capped; the diff
+    # prompt carries no issue body at all.
+    assert sum("[issue body truncated]" in prompt for prompt in llm.prompts) == 2
