@@ -4,14 +4,15 @@ version = "0.1.0"
 description = "PatchPilot agent service: reproduces public GitHub issues in Docker"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi==0.115.6",
+    "fastapi==0.140.0",
+    "starlette==1.3.1",
     "uvicorn==0.32.1",
 ]
 
 [project.optional-dependencies]
 test = [
     "httpx==0.28.1",
-    "pytest==8.3.4",
+    "pytest==9.0.3",
 ]
 
 [tool.pytest.ini_options]
