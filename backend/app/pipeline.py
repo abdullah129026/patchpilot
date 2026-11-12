@@ -264,6 +264,19 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
             detail="no error signature in the issue; nothing to match against",
         )
     signature = analysis["signature"]
+    if llm is None:
+        # No provider, no point cloning or installing: the job cannot
+        # generate anything, and the failure is honest, not a verdict.
+        return _finish(
+            store_dir,
+            job_id,
+            status="failed",
+            verdict=None,
+            signature=signature,
+            detail="LLM provider is not configured, so no "
+            "reproduction script could be generated. No verdict "
+            "is claimed for this job.",
+        )
     try:
         clone_fn(meta["owner"], meta["repo"], workspace)
     except Exception:
@@ -311,18 +324,6 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
             stack=detected,
             detail="dependency install failed",
         )
-    if llm is None:
-        return _finish(
-            store_dir,
-            job_id,
-            status="failed",
-            verdict=None,
-            signature=signature,
-            stack=detected,
-            detail="LLM provider is not configured, so no "
-            "reproduction script could be generated. No verdict "
-            "is claimed for this job.",
-        )
     attempts, limit_reached, reproduced = [], False, None
     tokens_used = 0
     for n in range(1, MAX_ATTEMPTS + 1):
@@ -352,6 +353,9 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
                 }
             )
             update_job(store_dir, job_id, attempts=attempts)
+            if tokens_used >= config.TOKEN_BUDGET_PER_JOB:
+                limit_reached = True
+                break
             continue
         result = _run_steps(executor, workspace, detected, _REPRO_COMMANDS[detected])
         attempts.append(
@@ -367,6 +371,12 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
             signature, result.log
         ):
             reproduced = script
+            break
+        # The budget is checked after the match, never before it: an
+        # attempt that reproduced keeps its verdict, and the next
+        # attempt is where the loop stops spending.
+        if tokens_used >= config.TOKEN_BUDGET_PER_JOB:
+            limit_reached = True
             break
     verdict = compute_verdict(
         attempts[-1]["exit_code"] if attempts else None,
@@ -384,6 +394,11 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
     if not reproduced:
         return _finish(store_dir, job_id, **fields)
     fields["repro_script"] = reproduced
+    if tokens_used >= config.TOKEN_BUDGET_PER_JOB:
+        # The reproduction stands, but a job already over budget spends
+        # nothing more on a test and diff for it.
+        fields["detail"] = "token budget reached; no fix proposed"
+        return _finish(store_dir, job_id, **fields)
     test = _strip_code_fence(
         llm.complete(
             f"Write {_TEST_HINT[detected]} as a failing test that captures "

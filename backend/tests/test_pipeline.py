@@ -347,3 +347,101 @@ def test_strip_code_fence_with_surrounding_prose():
 def test_strip_code_fence_unfenced_unchanged():
     code = "x = 1\nprint(x)\n"
     assert pipeline._strip_code_fence(code) == code
+
+
+class GreedyLLM(FakeLLM):
+    """Reports 100k tokens per call, so the 120k per-job budget trips
+    after two calls instead of after six attempts."""
+
+    def __init__(self):
+        self.last_usage = None
+
+    def complete(self, prompt):
+        self.last_usage = {"input": 100_000, "output": 0}
+        return super().complete(prompt)
+
+
+class NoMatchExecutor(FakeExecutor):
+    """The script runs clean, so no attempt ever matches the signature."""
+
+    def run(self, workspace, stack, command):
+        self.commands.append(command)
+        return RunResult(exit_code=0, log="ok\n")
+
+
+def test_token_budget_stops_the_loop(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=NoMatchExecutor(),
+        llm=GreedyLLM(),
+    )
+    assert job["verdict"] == "LIMIT_REACHED"
+    assert job["tokens_used"] >= 120_000
+    # The loop stopped as soon as the budget was crossed, not after
+    # burning every attempt.
+    assert len(job["attempts"]) == 2
+
+
+def test_token_budget_does_not_demote_a_reproduction(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=GreedyLLM(),
+    )
+    # The first attempt reproduced and cost 100k: the verdict is the
+    # earned reproduction, not a ceiling stop.
+    assert job["verdict"] == "REPRODUCED"
+    assert len(job["attempts"]) == 1
+
+
+def test_token_budget_skips_the_fix_when_one_call_blows_it(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+
+    class BlownLLM(GreedyLLM):
+        def complete(self, prompt):
+            self.last_usage = {"input": 200_000, "output": 0}
+            return FakeLLM.complete(self, prompt)
+
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=BlownLLM(),
+    )
+    assert job["verdict"] == "REPRODUCED"
+    # The reproduction stands, but no further LLM spend goes into a
+    # test and diff for a job already over budget.
+    assert job.get("failing_test") is None
+    assert job.get("fix_diff") is None
+    assert "token budget" in (job.get("detail") or "")
+
+
+def test_no_llm_fails_before_clone(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    called = []
+
+    def clone(owner, repo, dest):
+        called.append(True)
+
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=clone,
+        executor=FakeExecutor(),
+        llm=None,
+    )
+    assert called == []
+    assert job["status"] == "failed"
+    assert "LLM provider" in (job.get("detail") or "")
+    assert job["verdict"] is None
