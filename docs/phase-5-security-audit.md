@@ -32,8 +32,8 @@ pip-audit clean after the upgrade.
 | 4 | Submission ceiling check-then-record is not atomic; parallel submissions can overshoot the global daily ceiling | Medium | Fixed: check_and_record under one lock, threaded test proves exactly 3 of 6 parallel submissions get in (130 tests) |
 | 5 | Full issue body is pasted into every LLM prompt with no cap; a pathological body blows the context window on the first call | Medium | Fixed: prompt excerpt capped at 6000 chars, analyzer still reads the full body (128 tests) |
 | 6 | A job whose LLM provider is missing still clones and installs the repo before failing | Low | Fixed: fail-fast check moved before clone (121 tests) |
-| 7 | A failed job's reason (job detail) is never shown on the job or report page; the user sees "failed" with no explanation | Medium | In progress (this run) |
-| 8 | A job start that fails on the job page leaves the job visibly "queued" forever with no retry and no error | Medium | In progress (this run) |
+| 7 | A failed job's reason (job detail) is never shown on the job or report page; the user sees "failed" with no explanation | Medium | Fixed: detail rendered as text on both pages, verified by Playwright screenshots of a real failed job (134 tests) |
+| 8 | A job start that fails on the job page leaves the job visibly "queued" forever with no retry and no error | Medium | Fixed: start error shown with a retry button, verified against a stub agent returning 503 (134 tests) |
 | 9 | A job left "running" by a dead service process stays "running" forever; nothing marks it failed | Medium | Fixed: startup sweep marks stale running jobs failed with an honest detail (132 tests) |
 | 10 | Base images pinned by tag only (python:3.12-slim, node:22-slim, gcc:13); a tag can move under the build | Medium | Open: digest pinning needs the digests fetched (see below) |
 | 11 | CI actions pinned to major versions (@v4/@v5), not SHAs | Low | Open |
@@ -44,14 +44,29 @@ pip-audit clean after the upgrade.
 
 ## Failure drills
 
-- LLM down: local drill, backend with no provider configured.
-  Result recorded in the run log.
-- GitHub rate-limited: faked 403 rate-limit response at the client
-  boundary plus a live-shaped pipeline drill. Result recorded below.
-- Host down: frontend pointed at a dead agent URL (local Playwright
-  run). Result recorded below.
-- Takedown drill: local end-to-end delete + takedown-request drill.
-  Result recorded below.
+- LLM down: scripts/llm-down-drill.py, run 2026-11-12 (job
+  19097591c863, real GitHub fetch, provider forced down). Result:
+  PASS, job failed with "LLM provider is not configured, so no
+  reproduction script could be generated. No verdict is claimed for
+  this job." An earlier attempt hit the shared-egress unauthenticated
+  rate limit and returned exit 2 (inconclusive), which the drill now
+  reports distinctly. The same path was verified end to end over
+  HTTP (job 88fb616c2091, POST /run 202, polled to failed) and the
+  job and report pages render the reason (screenshots reviewed).
+- GitHub rate-limited: faked 429 and 403-with-exhausted-quota
+  responses at the client boundary (tests green), plus a live
+  accidental proof: the drill's unauthenticated fetch was
+  rate-limited by the shared egress IP and the pipeline reported
+  SETUP_FAILED with "GitHub rate-limited the issue fetch; try again
+  later", exactly the honest state the drill wants.
+- Host down: frontend pointed at a stub agent returning 503 on
+  POST /run (local Playwright run). Result: PASS, the job page shows
+  "The agent service did not start this job..." with a retry button,
+  zero page errors. The landing form already shows "Could not reach
+  the agent service" on a dead agent URL (pre-existing, verified by
+  code read; the submit path catches fetch failure).
+- Takedown drill: not run yet this run; the Phase 2 endpoints are
+  covered by tests, the scripted end-to-end drill is still open.
 
 ## Host hardening review
 

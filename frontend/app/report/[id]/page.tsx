@@ -83,6 +83,11 @@ export default function ReportPage({ params }: { params: { id: string } }) {
           )}
         </h1>
         {job.verdict && <VerdictExplanation verdict={job.verdict} />}
+        {job.status === "failed" && job.detail && (
+          <div className="notice">
+            <p>{job.detail}</p>
+          </div>
+        )}
         <dl className="kv">
           <dt>Issue</dt>
           <dd>

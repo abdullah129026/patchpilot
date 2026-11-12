@@ -22,6 +22,7 @@ export type Job = {
   issue: { owner: string; repo: string; number: number };
   stack?: string;
   signature?: string;
+  detail?: string;
   attempts: Attempt[];
   queue_position?: number;
   repro_script?: string | null;

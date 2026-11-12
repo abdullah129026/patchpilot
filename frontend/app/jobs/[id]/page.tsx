@@ -22,7 +22,30 @@ async function loadJob(id: string): Promise<Job | null> {
 
 export default function JobPage({ params }: { params: { id: string } }) {
   const [job, setJob] = useState<Job | null | undefined>(undefined);
+  const [startError, setStartError] = useState(false);
   const startedRef = useRef(false);
+
+  async function startJob(id: string) {
+    const agentUrl = process.env.NEXT_PUBLIC_AGENT_URL;
+    if (!agentUrl) return;
+    try {
+      const res = await fetch(`${agentUrl}/api/jobs/${id}/run`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        track("job_started");
+        setJob(await res.json());
+        setStartError(false);
+      } else {
+        // The job exists but the start was refused (paused, already
+        // running, or the service said no): say so, and offer a retry
+        // instead of leaving the job visibly queued forever.
+        setStartError(true);
+      }
+    } catch {
+      setStartError(true);
+    }
+  }
 
   useEffect(() => {
     let stopped = false;
@@ -39,18 +62,7 @@ export default function JobPage({ params }: { params: { id: string } }) {
       // 202 at once and the job runs in the background.
       if (loaded.status === "queued" && !startedRef.current) {
         startedRef.current = true;
-        try {
-          const res = await fetch(`${agentUrl}/api/jobs/${id}/run`, {
-            method: "POST",
-          });
-          if (res.ok) {
-            track("job_started");
-            setJob(await res.json());
-          }
-        } catch {
-          // The poll below still shows the job; a failed start is
-          // visible as a job stuck in queued.
-        }
+        startJob(id);
       }
       if (loaded.status === "done" || loaded.status === "failed") return;
       const poll = () => {
@@ -136,6 +148,31 @@ export default function JobPage({ params }: { params: { id: string } }) {
                 </>
               )}
             </p>
+          </div>
+        )}
+        {startError && (
+          <div className="notice">
+            <p>
+              The agent service did not start this job. It may be down or
+              paused; the job is still queued and nothing was lost.
+            </p>
+            <p>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setStartError(false);
+                  startJob(job.id);
+                }}
+              >
+                Try starting it again
+              </button>
+            </p>
+          </div>
+        )}
+        {job.status === "failed" && job.detail && (
+          <div className="notice">
+            <p>{job.detail}</p>
           </div>
         )}
         {job.status === "running" && (
