@@ -8,12 +8,21 @@
 set -euo pipefail
 
 sudo apt-get update -y
-sudo apt-get install -y docker.io python3 python3-venv python3-pip
+sudo apt-get install -y docker.io python3 python3-venv python3-pip unattended-upgrades
 sudo systemctl enable --now docker
+sudo systemctl enable --now unattended-upgrades
 sudo usermod -aG docker "$USER" || true
 
+# The agent service runs as its own unprivileged user, never root
+# and never the login user: a compromise of the service must not be
+# a compromise of the host user. The user needs the docker group to
+# talk to the daemon, and owns the job store; the service directory
+# itself is deployed as root and only read by the service.
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin patchpilot || true
+sudo usermod -aG docker patchpilot
+
 sudo mkdir -p /opt/patchpilot /opt/patchpilot/jobs
-sudo chown "$USER:$USER" /opt/patchpilot /opt/patchpilot/jobs
+sudo chown patchpilot:patchpilot /opt/patchpilot /opt/patchpilot/jobs
 
 cat <<'UNIT' | sudo tee /etc/systemd/system/patchpilot-agent.service > /dev/null
 [Unit]
@@ -23,6 +32,8 @@ Requires=docker.service
 
 [Service]
 Type=simple
+User=patchpilot
+Group=patchpilot
 WorkingDirectory=/opt/patchpilot/agent
 Environment=PATCHPILOT_JOB_DIR=/opt/patchpilot/jobs
 ExecStart=/opt/patchpilot/agent/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000

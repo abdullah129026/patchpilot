@@ -35,11 +35,11 @@ pip-audit clean after the upgrade.
 | 7 | A failed job's reason (job detail) is never shown on the job or report page; the user sees "failed" with no explanation | Medium | Fixed: detail rendered as text on both pages, verified by Playwright screenshots of a real failed job (134 tests) |
 | 8 | A job start that fails on the job page leaves the job visibly "queued" forever with no retry and no error | Medium | Fixed: start error shown with a retry button, verified against a stub agent returning 503 (134 tests) |
 | 9 | A job left "running" by a dead service process stays "running" forever; nothing marks it failed | Medium | Fixed: startup sweep marks stale running jobs failed with an honest detail (132 tests) |
-| 10 | Base images pinned by tag only (python:3.12-slim, node:22-slim, gcc:13); a tag can move under the build | Medium | Open: digest pinning needs the digests fetched (see below) |
+| 10 | Base images pinned by tag only (python:3.12-slim, node:22-slim, gcc:13); a tag can move under the build | Medium | Open: the digests could not be fetched from this VM (registry-1.docker.io manifest requests kill the session; auth.docker.io answers fine). Method documented in docs/deploy/host-hardening-review.md: fetch on a host with direct Docker Hub access and pin as image@sha256:... in config.py |
 | 11 | CI actions pinned to major versions (@v4/@v5), not SHAs | Low | Open |
-| 12 | Agent service runs as root in its systemd unit (no User=); a compromise of the service is a compromise of the host user | High | Open: unit fix is code-side, applying it on the live host is a founder SSM step |
+| 12 | Agent service runs as root in its systemd unit (no User=); a compromise of the service is a compromise of the host user | High | Code-side fixed this run (patchpilot system user in setup-host.sh, unit runs as it). Applying it on the live host is a founder SSM step (unit edit + daemon-reload + restart, steps in host-hardening-review.md) |
 | 13 | Security group SSH rule was 0.0.0.0/0 at launch; access is via SSM now, so the rule can be deleted | Medium | Open: founder console step (known since 2026-11-02) |
-| 14 | No unattended security updates or host firewall configured on the EC2 host | Low | Open: founder console/SSM step |
+| 14 | No unattended security updates or host firewall configured on the EC2 host | Low | Partially fixed: unattended-upgrades added to setup-host.sh (live host still needs the SSM install). ufw deliberately deferred: it can break Docker networking, the security group is the inbound filter |
 | 15 | Attempt loop retries the same prompt 6 times with no feedback from the last attempt | Medium | Open: founder's call whether it lands in Phase 5 (carried from Phase 3) |
 
 ## Failure drills
@@ -65,8 +65,11 @@ pip-audit clean after the upgrade.
   zero page errors. The landing form already shows "Could not reach
   the agent service" on a dead agent URL (pre-existing, verified by
   code read; the submit path catches fetch failure).
-- Takedown drill: not run yet this run; the Phase 2 endpoints are
-  covered by tests, the scripted end-to-end drill is still open.
+- Takedown drill: scripts/takedown-drill.py, run 2026-11-12
+  against a local backend (job bc50a032c4ae). Result: PASS, all 8
+  checks (delete 403 without/wrong token, 204 with token, 404
+  after, takedown-request 202, report untouched, 404 for unknown
+  job, request recorded in .takedown-requests.jsonl).
 
 ## Host hardening review
 
