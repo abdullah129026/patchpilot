@@ -6,6 +6,7 @@ import pytest
 from app.github_client import (
     CloneError,
     IssueFetchError,
+    RateLimitedError,
     checkout_ref,
     clone_repo,
     fetch_issue,
@@ -90,6 +91,38 @@ def test_fetch_issue_returns_title_and_body():
 def test_fetch_issue_404_raises():
     with pytest.raises(IssueFetchError):
         fetch_issue("acme", "demo", 7, transport=_transport({}, status=404))
+
+
+def _transport_with_headers(payload, status=200, headers=None):
+    def handler(request):
+        return httpx.Response(status, json=payload, headers=headers or {})
+
+    return httpx.MockTransport(handler)
+
+
+def test_fetch_issue_429_is_rate_limited():
+    with pytest.raises(RateLimitedError):
+        fetch_issue("acme", "demo", 7, transport=_transport({}, status=429))
+
+
+def test_fetch_issue_403_with_exhausted_quota_is_rate_limited():
+    transport = _transport_with_headers(
+        {}, status=403, headers={"X-RateLimit-Remaining": "0"}
+    )
+    with pytest.raises(RateLimitedError):
+        fetch_issue("acme", "demo", 7, transport=transport)
+
+
+def test_fetch_issue_403_without_rate_headers_is_plain_error():
+    with pytest.raises(IssueFetchError) as excinfo:
+        fetch_issue("acme", "demo", 7, transport=_transport({}, status=403))
+    assert not isinstance(excinfo.value, RateLimitedError)
+    transport = _transport_with_headers(
+        {}, status=403, headers={"X-RateLimit-Remaining": "59"}
+    )
+    with pytest.raises(IssueFetchError) as excinfo:
+        fetch_issue("acme", "demo", 7, transport=transport)
+    assert not isinstance(excinfo.value, RateLimitedError)
 
 
 def test_cached_issue_is_not_fetched_twice(tmp_path):

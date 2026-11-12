@@ -22,7 +22,12 @@ from pathlib import Path
 
 from app import config, stack as stack_mod
 from app.analyzer import analyze_issue
-from app.github_client import checkout_ref, clone_repo, fetch_issue_cached
+from app.github_client import (
+    RateLimitedError,
+    checkout_ref,
+    clone_repo,
+    fetch_issue_cached,
+)
 from app.job_store import get_job, update_job
 from app.llm import ProviderUnavailable, build_llm_client
 from app.runner import DockerRunner
@@ -244,6 +249,14 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
         try:
             issue = fetch_issue_cached(
                 store_dir, job_id, meta["owner"], meta["repo"], meta["number"]
+            )
+        except RateLimitedError:
+            return _finish(
+                store_dir,
+                job_id,
+                status="done",
+                verdict=compute_verdict(None, False, setup_failed=True).value,
+                detail="GitHub rate-limited the issue fetch; try again later",
             )
         except Exception:
             return _finish(

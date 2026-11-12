@@ -27,7 +27,7 @@ pip-audit clean after the upgrade.
 | # | Finding | Severity | Status |
 |---|---------|----------|--------|
 | 1 | Per-job token budget defined (TOKEN_BUDGET_PER_JOB, 120_000) but never enforced; the attempt loop only checks wall time | High | Fixed: loop stops with LIMIT REACHED, a reproducing attempt keeps its verdict, no test/diff spend once over budget (121 tests) |
-| 2 | GitHub issue fetch does not distinguish rate limiting (403/429) from other failures; the job reports a generic "issue fetch failed" | Medium | In progress (this run) |
+| 2 | GitHub issue fetch does not distinguish rate limiting (403/429) from other failures; the job reports a generic "issue fetch failed" | Medium | Fixed: RateLimitedError on 429 or exhausted quota, pipeline reports SETUP_FAILED with "try again later" (125 tests) |
 | 3 | Per-IP ceiling reads the first X-Forwarded-For entry, which a client can spoof; Caddy appends the real client IP last | Medium | In progress (this run) |
 | 4 | Submission ceiling check-then-record is not atomic; parallel submissions can overshoot the global daily ceiling | Medium | In progress (this run) |
 | 5 | Full issue body is pasted into every LLM prompt with no cap; a pathological body blows the context window on the first call | Medium | In progress (this run) |

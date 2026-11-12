@@ -445,3 +445,24 @@ def test_no_llm_fails_before_clone(tmp_path, monkeypatch):
     assert job["status"] == "failed"
     assert "LLM provider" in (job.get("detail") or "")
     assert job["verdict"] is None
+
+
+def test_rate_limited_fetch_is_setup_failed_with_honest_detail(tmp_path, monkeypatch):
+    from app.github_client import RateLimitedError
+
+    job_id = _setup(tmp_path, monkeypatch)
+
+    def limited(*args, **kwargs):
+        raise RateLimitedError("GitHub rate limit exceeded")
+
+    monkeypatch.setattr(pipeline, "fetch_issue_cached", limited)
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=None,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=FakeLLM(),
+    )
+    assert job["verdict"] == "SETUP_FAILED"
+    assert "rate-limit" in (job.get("detail") or "")

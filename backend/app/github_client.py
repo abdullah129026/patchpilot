@@ -26,6 +26,12 @@ class IssueFetchError(Exception):
     pass
 
 
+class RateLimitedError(IssueFetchError):
+    """GitHub answered with a rate limit (429, or a 403 with the quota
+    exhausted). The pipeline reports this distinctly so the user sees
+    "try again later" instead of a generic fetch failure."""
+
+
 class CloneError(Exception):
     pass
 
@@ -44,6 +50,10 @@ def fetch_issue(owner, repo, number, token=None, transport=None) -> dict:
             )
     except httpx.HTTPError as exc:
         raise IssueFetchError(f"GitHub request failed: {type(exc).__name__}") from exc
+    if resp.status_code == 429 or (
+        resp.status_code == 403 and resp.headers.get("X-RateLimit-Remaining") == "0"
+    ):
+        raise RateLimitedError("GitHub rate limit exceeded for the issue fetch")
     if resp.status_code != 200:
         raise IssueFetchError(f"GitHub returned {resp.status_code} for the issue")
     data = resp.json()
