@@ -9,11 +9,20 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # Actions are pinned to full SHAs, not tags: a tag can be moved,
+      # a SHA cannot. The comment after each SHA names the tag it came
+      # from, so the next bump is a one-line change.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - run: pip install -r backend/requirements.txt
+      # Dependency audit: any known vulnerability in the pinned set
+      # fails the build. Run before the tests so a bad pin is caught
+      # even when the suite itself is green.
+      - run: pip install pip-audit
+      - working-directory: backend
+        run: pip-audit -r requirements.txt
       # Tests and lint run from backend/ so `import app` resolves the
       # same way it does in local development.
       - working-directory: backend
@@ -26,8 +35,8 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
