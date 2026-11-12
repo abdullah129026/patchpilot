@@ -20,7 +20,7 @@ from pathlib import Path
 
 from app import config
 
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()
 
 
 class LimitExceeded(Exception):
@@ -39,9 +39,14 @@ def is_paused(store_dir: str | Path) -> bool:
 def client_ip(request) -> str:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
+        # The reverse proxy (Caddy) appends the address it actually
+        # saw, so the last entry is the real client; earlier entries
+        # are client-supplied and can be spoofed to rotate the
+        # per-IP ceiling. Single-proxy setup: the service binds
+        # localhost and only Caddy reaches it.
+        last = forwarded.split(",")[-1].strip()
+        if last:
+            return last
     if request.client is not None:
         return request.client.host
     return "unknown"
@@ -112,6 +117,19 @@ def check_limits(store_dir: str | Path, ip: str) -> None:
             "You have reached the per-address daily limit (2 jobs per day). "
             "Try again tomorrow.",
         )
+
+
+def check_and_record(store_dir: str | Path, ip: str) -> dict:
+    """Check the ceilings and record the submission atomically.
+
+    Check-then-record in two steps lets a burst of parallel
+    submissions all pass the check before any of them records, and
+    the global ceiling overshoots. One lock across both keeps the
+    count honest.
+    """
+    with _LOCK:
+        check_limits(store_dir, ip)
+        return record_submission(store_dir, ip)
 
 
 def record_submission(store_dir: str | Path, ip: str) -> dict:

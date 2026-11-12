@@ -116,14 +116,13 @@ def create_app() -> FastAPI:
         store = config.job_dir()
         ip = limits.client_ip(request)
         try:
-            limits.check_limits(store, ip)
+            limits.check_and_record(store, ip)
         except limits.LimitExceeded as exc:
             limits.record_rejection(store, exc.kind)
             raise HTTPException(
                 status_code=exc.status_code, detail=exc.message
             ) from exc
         job = create_job(store, owner, repo, number)
-        limits.record_submission(store, ip)
         return job
 
     @app.post("/api/jobs/{job_id}/run", status_code=202)

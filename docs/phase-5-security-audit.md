@@ -28,8 +28,8 @@ pip-audit clean after the upgrade.
 |---|---------|----------|--------|
 | 1 | Per-job token budget defined (TOKEN_BUDGET_PER_JOB, 120_000) but never enforced; the attempt loop only checks wall time | High | Fixed: loop stops with LIMIT REACHED, a reproducing attempt keeps its verdict, no test/diff spend once over budget (121 tests) |
 | 2 | GitHub issue fetch does not distinguish rate limiting (403/429) from other failures; the job reports a generic "issue fetch failed" | Medium | Fixed: RateLimitedError on 429 or exhausted quota, pipeline reports SETUP_FAILED with "try again later" (125 tests) |
-| 3 | Per-IP ceiling reads the first X-Forwarded-For entry, which a client can spoof; Caddy appends the real client IP last | Medium | In progress (this run) |
-| 4 | Submission ceiling check-then-record is not atomic; parallel submissions can overshoot the global daily ceiling | Medium | In progress (this run) |
+| 3 | Per-IP ceiling reads the first X-Forwarded-For entry, which a client can spoof; Caddy appends the real client IP last | Medium | Fixed: last entry wins, single-proxy assumption documented (130 tests) |
+| 4 | Submission ceiling check-then-record is not atomic; parallel submissions can overshoot the global daily ceiling | Medium | Fixed: check_and_record under one lock, threaded test proves exactly 3 of 6 parallel submissions get in (130 tests) |
 | 5 | Full issue body is pasted into every LLM prompt with no cap; a pathological body blows the context window on the first call | Medium | Fixed: prompt excerpt capped at 6000 chars, analyzer still reads the full body (128 tests) |
 | 6 | A job whose LLM provider is missing still clones and installs the repo before failing | Low | Fixed: fail-fast check moved before clone (121 tests) |
 | 7 | A failed job's reason (job detail) is never shown on the job or report page; the user sees "failed" with no explanation | Medium | In progress (this run) |
