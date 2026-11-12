@@ -54,6 +54,36 @@ def _public(job: dict) -> dict:
     return {k: v for k, v in job.items() if k != "delete_token_hash"}
 
 
+def sweep_stale_running(store_dir: str | Path) -> int:
+    """Mark jobs left "running" by a dead process as failed.
+
+    A job runs in a background thread, so a service restart (or a
+    crash) orphans it: the thread is gone, but the report still says
+    running and the job page spins forever. The sweep runs once at
+    service startup, when no job can legitimately be running yet, and
+    closes those orphans with an honest detail instead of a verdict.
+    Returns how many jobs were closed.
+    """
+    root = Path(store_dir)
+    if not root.is_dir():
+        return 0
+    closed = 0
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        job = _read_raw(store_dir, child.name)
+        if job is None or job.get("status") != "running":
+            continue
+        job["status"] = "failed"
+        job["detail"] = (
+            "The service restarted while this job was running. "
+            "No verdict is claimed for it; resubmit the issue to run it again."
+        )
+        _write_report(child / "report.json", job)
+        closed += 1
+    return closed
+
+
 def count_active_jobs(store_dir: str | Path) -> int:
     root = Path(store_dir)
     if not root.is_dir():

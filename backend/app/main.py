@@ -12,6 +12,7 @@ the job detail. Attempts land in the job record as they finish.
 import json
 import threading
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +28,7 @@ from app.job_store import (
     delete_job,
     get_job,
     record_takedown_request,
+    sweep_stale_running,
 )
 from app.pipeline import run_job
 
@@ -46,7 +48,14 @@ class AnalyticsEvent(BaseModel):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="PatchPilot agent service")
+    @asynccontextmanager
+    async def lifespan(app):
+        # A job left running by a previous process can never finish;
+        # close it honestly before serving anything.
+        sweep_stale_running(config.job_dir())
+        yield
+
+    app = FastAPI(title="PatchPilot agent service", lifespan=lifespan)
     # The demo API is public by design (no accounts, D2): the Vercel
     # frontend and local dev both call it from the browser, so it
     # answers cross-origin. The delete token, not origin, guards deletion.

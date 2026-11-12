@@ -74,3 +74,14 @@ def test_create_job_rejects_bad_url(tmp_path, monkeypatch):
     resp = c.post("/api/jobs", json={"issue_url": "https://example.com/x"})
     assert resp.status_code == 422
     assert c.get("/api/jobs/../../etc/passwd").status_code in (404, 422)
+
+
+def test_startup_sweep_marks_stale_running_jobs_failed(tmp_path, monkeypatch):
+    from app.job_store import create_job, get_job, update_job
+
+    monkeypatch.setenv("PATCHPILOT_JOB_DIR", str(tmp_path))
+    job = create_job(tmp_path, "psf", "requests", 1)
+    update_job(tmp_path, job["id"], status="running")
+    with TestClient(create_app()):
+        pass
+    assert get_job(tmp_path, job["id"])["status"] == "failed"

@@ -34,7 +34,7 @@ pip-audit clean after the upgrade.
 | 6 | A job whose LLM provider is missing still clones and installs the repo before failing | Low | Fixed: fail-fast check moved before clone (121 tests) |
 | 7 | A failed job's reason (job detail) is never shown on the job or report page; the user sees "failed" with no explanation | Medium | In progress (this run) |
 | 8 | A job start that fails on the job page leaves the job visibly "queued" forever with no retry and no error | Medium | In progress (this run) |
-| 9 | A job left "running" by a dead service process stays "running" forever; nothing marks it failed | Medium | In progress (this run) |
+| 9 | A job left "running" by a dead service process stays "running" forever; nothing marks it failed | Medium | Fixed: startup sweep marks stale running jobs failed with an honest detail (132 tests) |
 | 10 | Base images pinned by tag only (python:3.12-slim, node:22-slim, gcc:13); a tag can move under the build | Medium | Open: digest pinning needs the digests fetched (see below) |
 | 11 | CI actions pinned to major versions (@v4/@v5), not SHAs | Low | Open |
 | 12 | Agent service runs as root in its systemd unit (no User=); a compromise of the service is a compromise of the host user | High | Open: unit fix is code-side, applying it on the live host is a founder SSM step |

@@ -67,3 +67,20 @@ def test_path_traversal_id_returns_none(tmp_path):
     assert get_job(tmp_path, "../secret") is None
     with pytest.raises(ValueError):
         create_job(tmp_path, "a/b", "repo", 1)
+
+
+def test_sweep_marks_stale_running_jobs_failed(tmp_path):
+    from app.job_store import sweep_stale_running
+
+    stale = create_job(tmp_path, "psf", "requests", 1)
+    update_job(tmp_path, stale["id"], status="running")
+    queued = create_job(tmp_path, "psf", "requests", 2)
+    done = create_job(tmp_path, "psf", "requests", 3)
+    update_job(tmp_path, done["id"], status="done", verdict="NOT_REPRODUCED")
+    assert sweep_stale_running(tmp_path) == 1
+    failed = get_job(tmp_path, stale["id"])
+    assert failed["status"] == "failed"
+    assert "restarted" in (failed.get("detail") or "")
+    assert get_job(tmp_path, queued["id"])["status"] == "queued"
+    assert get_job(tmp_path, done["id"])["status"] == "done"
+    assert sweep_stale_running(tmp_path) == 0
