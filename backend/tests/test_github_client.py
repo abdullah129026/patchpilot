@@ -1,3 +1,5 @@
+import os
+import stat
 import subprocess
 
 import httpx
@@ -7,6 +9,7 @@ from app.github_client import (
     CloneError,
     IssueFetchError,
     RateLimitedError,
+    _dir_size_mb,
     checkout_ref,
     clone_repo,
     fetch_issue,
@@ -147,3 +150,47 @@ def test_cached_issue_is_not_fetched_twice(tmp_path):
 def test_clone_rejects_bad_names(tmp_path):
     with pytest.raises(ValueError):
         clone_repo("../evil", "demo", tmp_path / "ws")
+
+
+def _fake_git(tmp_path):
+    """A git that 'clones' by creating the dest dir (last argument)."""
+    script = tmp_path / "git"
+    script.write_text(
+        '#!/bin/sh\nfor last; do :; done\nmkdir -p "$last"\necho x > "$last/file.txt"\n'
+    )
+    script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    return script
+
+
+def test_dir_size_mb_sums_files(tmp_path):
+    (tmp_path / "a.txt").write_bytes(b"x" * 1024)
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "b.txt").write_bytes(b"y" * 1024)
+    assert _dir_size_mb(tmp_path) == pytest.approx(2048 / (1024 * 1024))
+
+
+def test_clone_over_cap_deletes_workspace_and_raises(tmp_path, monkeypatch):
+    # The cap itself is the adversarial behavior: an oversized repo
+    # must never reach the runner, and its bytes must not linger.
+    # The size is faked (a real 500 MB clone is waste); the measuring
+    # function is verified for real in test_dir_size_mb_sums_files.
+    from app import config
+
+    _fake_git(tmp_path)
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+    monkeypatch.setattr(
+        "app.github_client._dir_size_mb", lambda root: config.MAX_CLONE_MB + 1
+    )
+    dest = tmp_path / "ws"
+    with pytest.raises(CloneError, match="exceeds"):
+        clone_repo("acme", "demo", dest)
+    assert not dest.exists()
+
+
+def test_clone_under_cap_keeps_workspace(tmp_path, monkeypatch):
+    _fake_git(tmp_path)
+    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
+    monkeypatch.setattr("app.github_client._dir_size_mb", lambda root: 1)
+    dest = tmp_path / "ws"
+    clone_repo("acme", "demo", dest)
+    assert (dest / "file.txt").exists()
