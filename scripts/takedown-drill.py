@@ -40,7 +40,13 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     passed = True
     try:
-        with httpx.Client(base_url=args.agent, timeout=30) as client:
+        # trust_env=False: the drill only ever talks to localhost, and
+        # httpx otherwise parses NO_PROXY at Client construction, which
+        # breaks on bracketed IPv6 entries (e.g. [fd8b:...]) in some
+        # sandbox environments. Localhost never needs a proxy.
+        with httpx.Client(
+            base_url=args.agent, timeout=30, trust_env=False
+        ) as client:
             created = client.post("/api/jobs", json={"issue_url": ISSUE_URL})
             if created.status_code != 201:
                 print(f"Agent did not accept the drill job: {created.status_code}")
