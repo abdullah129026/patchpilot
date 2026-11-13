@@ -53,12 +53,15 @@ sudo systemctl restart patchpilot-agent
 curl http://127.0.0.1:8000/health
 ```
 
-### 2. Security group SSH rule is 0.0.0.0/0 (Medium)
+### 2. Security group SSH rule (Medium) — corrected 2026-11-12, not 0.0.0.0/0
 
-Open since launch (known since 2026-11-02). Access is via SSM now,
-so the SSH rule can be deleted outright. Founder step (console):
-EC2 > Security Groups > the patchpilot-agent group > delete the
-inbound SSH rule. No replacement is needed.
+The original wording here said the rule was 0.0.0.0/0 since launch.
+That premise was wrong: his 2026-11-07 screenshot showed port 22
+locked to a single IP (source starting 103.10), never 0.0.0.0/0,
+and he deleted the rule anyway that day at 17:55 PKT
+(memory/2026-11-07.md, line 19; item marked closed for good).
+Access is via SSM, nothing depends on SSH. This finding is closed
+and must not be re-raised as a 0.0.0.0/0 issue.
 
 ### 3. No unattended security updates (Low)
 
@@ -68,7 +71,8 @@ Founder step (SSM, live host): install and enable it there too
 --now unattended-upgrades`). A host firewall (ufw) was considered
 and deliberately left out: ufw's default FORWARD policy can break
 Docker's container networking, and the security group already
-filters inbound (22 from his IP, 80/443 for Caddy). Revisit ufw
+filters inbound (80/443 for Caddy; no SSH rule, it was deleted
+2026-11-07). Revisit ufw
 only with a scratch-instance test, not on the live host.
 
 ### 4. The Caddy setup lives only on the host (Medium)
@@ -100,23 +104,21 @@ Then write the Caddyfile above to /etc/caddy/Caddyfile and
 `sudo systemctl reload caddy`. The Vercel variable
 NEXT_PUBLIC_AGENT_URL=https://agent.fluxyai.codes is already set.
 
-### 5. Base images pinned by tag only (Medium)
+### 5. Base images pinned by tag only (Medium) — fixed 2026-11-12
 
-python:3.12-slim, node:22-slim, gcc:13. A tag can move under the
-build. Digest pinning is the fix, but the digests could not be
-fetched from this VM: the registry-1.docker.io manifest request
-kills the session (the egress proxy path to that host is unusable
-here), while auth.docker.io answers fine. Fetch on a host with
-direct Docker Hub access:
+python:3.12-slim, node:22-slim, gcc:13 were pinned by tag only. A
+tag can move under the build. Fixed: the digests were fetched on
+the EC2 host (docker pull + RepoDigests; buildx is not installed
+there) and pinned as image@sha256:... in backend/app/config.py
+(commit ac23667):
 
-```sh
-docker buildx imagetools inspect python:3.12-slim --format '{{json .Manifest}}'
-```
+- python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+- node:22-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+- gcc:13@sha256:8c0fe724784c6d617cb582f79ddaf5dd2233aaba2fb7a14e0b9d03348fea8088
 
-or via the registry API (token from auth.docker.io, then the
-Docker-Content-Digest header on the manifest request). Record the
-three digests in backend/app/config.py as `image@sha256:...` and
-re-run the suite; the runner uses the config values as-is. Open.
+Takes effect on the host at the next deploy-host.sh run. The
+registry-unreachable-from-this-VM note from the first draft is
+moot: the digests came from the host, not from here.
 
 ## Checklist status (Phase 5 DONE bar)
 
@@ -126,10 +128,11 @@ re-run the suite; the runner uses the config values as-is. Open.
 - [x] Failure drills: LLM down, GitHub rate-limited, host down,
       takedown — all end in honest user-facing states
 - [x] Secrets review: none in code, logs, or the repo
-- [ ] Digest pinning (open, method documented above)
+- [x] Digest pinning (fixed 2026-11-12, commit ac23667; takes
+      effect on the host at the next deploy)
 - [ ] Service runs as an unprivileged user on the live host
       (code-side done, SSM step outstanding)
-- [ ] SSH 0.0.0.0/0 rule deleted (console step outstanding)
+- [ ] SSH rule: corrected 2026-11-12, never 0.0.0.0/0 (single IP 103.10..., deleted 2026-11-07 17:55 PKT); live state not asserted here, console confirmation already requested in the Nov 12 Phase 5 message
 - [ ] Unattended upgrades on the live host (SSM step outstanding)
 - [ ] Host firewall: deferred deliberately (ufw can break Docker
       networking; the security group is the inbound filter)
