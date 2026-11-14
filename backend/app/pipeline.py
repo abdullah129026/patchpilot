@@ -155,6 +155,32 @@ def _issue_excerpt(issue: dict) -> str:
     return f"Issue: {issue['title']}\n{body}"
 
 
+def _attempt_feedback(attempts: list) -> str:
+    """What the previous attempt did, for the next script prompt.
+
+    Attempt 1 gets nothing: there is no previous attempt. A syntax
+    failure has no exit code, so the feedback says so instead of
+    inventing one. The log is only ever a tail, capped in config.
+    """
+    if not attempts:
+        return ""
+    previous = attempts[-1]
+    if previous["exit_code"] is None:
+        return (
+            "The previous attempt failed the syntax check, so no "
+            "container run was spent. Fix the syntax error."
+        )
+    log = previous["log"] or ""
+    tail = log[-config.MAX_PROMPT_LOG_TAIL_CHARS :]
+    note = ""
+    if len(log) > config.MAX_PROMPT_LOG_TAIL_CHARS:
+        note = " (log tail truncated)"
+    return (
+        f"The previous attempt exited with code {previous['exit_code']}"
+        f" and printed this{note}:\n{tail}"
+    )
+
+
 def _strip_code_fence(text: str) -> str:
     """Return the first fenced code block in an LLM reply, else the reply.
 
@@ -356,15 +382,17 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
         if time.monotonic() - started > config.MAX_JOB_SECONDS:
             limit_reached = True
             break
-        script = _strip_code_fence(
-            llm.complete(
-                f"Write {_SCRIPT_HINT[detected]} that reproduces this issue. "
-                "Reply with only the script code. The script must exit "
-                "non-zero and leave the error in its output when the bug "
-                "is present; do not catch or swallow the error.\n"
-                f"{_issue_excerpt(issue)}"
-            )
+        feedback = _attempt_feedback(attempts)
+        prompt = (
+            f"Write {_SCRIPT_HINT[detected]} that reproduces this issue. "
+            "Reply with only the script code. The script must exit "
+            "non-zero and leave the error in its output when the bug "
+            "is present; do not catch or swallow the error.\n"
+            f"{_issue_excerpt(issue)}"
         )
+        if feedback:
+            prompt += f"\n{feedback}"
+        script = _strip_code_fence(llm.complete(prompt))
         tokens_used = _charge(llm, tokens_used)
         update_job(store_dir, job_id, tokens_used=tokens_used)
         script_path = workspace / _REPRO_FILE[detected]

@@ -41,6 +41,11 @@ MAX_LOG_CHARS = 20000
 # whole thing: a pathological body must not blow the context window
 # on the first call. The analyzer still reads the full body.
 MAX_PROMPT_ISSUE_CHARS = 6000
+# Attempts 2-6 are told what the previous attempt did (exit code and
+# the tail of its log), so the model stops repeating the same failed
+# script. The tail is capped for the same reason as the issue excerpt:
+# a pathological log must not blow the context window on a retry.
+MAX_PROMPT_LOG_TAIL_CHARS = 2000
 
 SERVICE_NAME = "patchpilot-agent"
 SERVICE_VERSION = "0.1.0"

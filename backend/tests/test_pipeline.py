@@ -511,3 +511,101 @@ def test_prompt_cap_does_not_hide_the_signature_from_analysis(tmp_path, monkeypa
     # The two prompts that carry the issue body are capped; the diff
     # prompt carries no issue body at all.
     assert sum("[issue body truncated]" in prompt for prompt in llm.prompts) == 2
+
+
+class FeedbackExecutor(FakeExecutor):
+    """First repro run fails with a log that does not match the
+    signature, the second exits clean: the loop must reach attempt 2."""
+
+    def __init__(self):
+        super().__init__()
+        self.runs = 0
+
+    def run(self, workspace, stack, command):
+        if command == ["python", "repro.py"]:
+            self.runs += 1
+            if self.runs == 1:
+                return RunResult(exit_code=1, log="Traceback:\nKeyError: other\n")
+            return RunResult(exit_code=0, log="ok\n")
+        return super().run(workspace, stack, command)
+
+
+class FeedbackLLM(FakeLLM):
+    def __init__(self):
+        self.prompts = []
+
+    def complete(self, prompt):
+        self.prompts.append(prompt)
+        return super().complete(prompt)
+
+
+def test_second_attempt_sees_previous_exit_code_and_log(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+    llm = FeedbackLLM()
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FeedbackExecutor(),
+        llm=llm,
+    )
+    assert job["verdict"] == "NOT_REPRODUCED"
+    assert len(job["attempts"]) == 2
+    assert "previous attempt" not in llm.prompts[0]
+    assert "exited with code 1" in llm.prompts[1]
+    assert "KeyError: other" in llm.prompts[1]
+
+
+def test_feedback_log_tail_is_capped(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+
+    class LongLogExecutor(FeedbackExecutor):
+        def run(self, workspace, stack, command):
+            if command == ["python", "repro.py"] and self.runs == 0:
+                self.runs += 1
+                return RunResult(exit_code=1, log="A" * 3000 + "TAILMARKER\n")
+            return super().run(workspace, stack, command)
+
+    llm = FeedbackLLM()
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=LongLogExecutor(),
+        llm=llm,
+    )
+    assert len(job["attempts"]) == 2
+    # The tail keeps the end of the log and says it was cut.
+    assert "TAILMARKER" in llm.prompts[1]
+    assert "truncated" in llm.prompts[1]
+    assert llm.prompts[1].count("A") <= 2000
+
+
+def test_feedback_after_syntax_failure(tmp_path, monkeypatch):
+    job_id = _setup(tmp_path, monkeypatch)
+
+    class FlakySyntaxLLM(FeedbackLLM):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def complete(self, prompt):
+            self.calls += 1
+            if self.calls == 1:
+                self.prompts.append(prompt)
+                return "def broken(:\n"
+            return super().complete(prompt)
+
+    llm = FlakySyntaxLLM()
+    job = pipeline.run_job(
+        tmp_path,
+        job_id,
+        issue=ISSUE,
+        clone_fn=_clone_with_buggy_app,
+        executor=FakeExecutor(),
+        llm=llm,
+    )
+    assert job["attempts"][0]["exit_code"] is None
+    assert "syntax check" in llm.prompts[1]
