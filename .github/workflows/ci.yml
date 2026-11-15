@@ -43,5 +43,12 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - working-directory: frontend
         run: npm ci
+      # Dependency audit: any known high or critical vulnerability in
+      # the pinned set fails the build, same as the pip-audit gate on
+      # the backend job. This is what caught next 14.2.18 carrying
+      # CVE-2025-29927 after the fact; the gate keeps it from
+      # recurring silently.
+      - working-directory: frontend
+        run: npm audit --audit-level=high
       - working-directory: frontend
         run: npm run build

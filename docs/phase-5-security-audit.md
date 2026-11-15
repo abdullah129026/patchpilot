@@ -41,6 +41,28 @@ pip-audit clean after the upgrade.
 | 13 | Security group SSH rule was 0.0.0.0/0 at launch; access is via SSM now, so the rule can be deleted | Medium | Corrected 2026-11-12: the 0.0.0.0/0 premise was wrong. His 2026-11-07 screenshot showed port 22 locked to a single IP (source starting 103.10), never 0.0.0.0/0, and he deleted the rule anyway that day at 17:55 PKT (memory/2026-11-07.md, line 19; item marked closed for good). Do not re-raise as a 0.0.0.0/0 finding. Resolved 2026-11-13: host-hardening-review.md section 3 no longer describes "22 from his IP"; the review and this audit now agree the rule is gone. |
 | 14 | No unattended security updates or host firewall configured on the EC2 host | Low | Fixed: unattended-upgrades added to setup-host.sh; applied on the live host 2026-11-13 in the Step 1 SSM session (already newest, enabled, health ok). ufw deliberately deferred: it can break Docker networking, the security group is the inbound filter. CLOSED. |
 | 15 | Attempt loop retries the same prompt 6 times with no feedback from the last attempt | Medium | Fixed 2026-11-14 (his call 2026-11-13: build in Phase 5): attempts 2-6 now get the previous attempt's exit code and a capped 2000-char log tail in the prompt (MAX_PROMPT_LOG_TAIL_CHARS); a syntax failure reports itself instead of an invented exit code; attempt 1 gets no feedback. TDD: 3 new tests (140 tests). Takes effect on the host at the next deploy-host.sh run; the fixture benchmark must be re-run after it to re-measure the 7/10 score honestly. CLOSED code-side; benchmark re-run is the founder's SSM step. |
+| 16 | Pinned Next.js 14.2.18 carries CVE-2025-29927 (critical, CVSS 9.1, middleware authorization bypass; fixed in 14.2.25) | High | Fixed 2026-11-15: bumped to next 14.2.35 (latest 14.x patch); frontend build green (10 routes), landing screenshots reviewed (desktop, full-page, mobile 390; zero page errors). Not directly exploitable here: the app ships no middleware.ts and is hosted on Vercel, which strips the header at the edge. Also added an `npm audit --audit-level=high` gate to the frontend CI job, so a pinned frontend CVE fails the build the way pip-audit does on the backend. CLOSED. |
+
+## Frontend dependency audit — 2026-11-15
+
+Tool: `npm audit` against frontend/package.json, plus advisory lookup.
+`npm audit` itself cannot run from this VM: the registry audit endpoint
+returns 403 policy_denied through the egress proxy, so the check was done
+against the published advisories instead, and the new CI gate is the
+durable check going forward (GitHub runners reach the audit endpoint).
+
+Before: next pinned at 14.2.18, which is inside the CVE-2025-29927
+affected range (14.0.0 to < 14.2.25, GHSA-f82v-jwr5-mffw). The flaw lets
+an inbound `x-middleware-subrequest` header skip Next.js middleware, so
+any auth check living in middleware is bypassed. This app has no
+middleware and no auth, and Vercel strips the header at the edge, so
+there was no live exposure; the pinned version was still a known
+critical CVE in a shipped dependency, which is what the audit is for.
+
+Fix: next 14.2.35 (latest 14.x patch at the time), package.json and
+package-lock.json updated. React 18.3.1 is the latest 18.x line and
+carries no action. Verified: production build green, landing page
+served 200 locally with zero page errors, screenshots reviewed.
 
 ## Failure drills
 
