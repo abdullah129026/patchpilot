@@ -41,7 +41,9 @@ pip-audit clean after the upgrade.
 | 13 | Security group SSH rule was 0.0.0.0/0 at launch; access is via SSM now, so the rule can be deleted | Medium | Corrected 2026-11-12: the 0.0.0.0/0 premise was wrong. His 2026-11-07 screenshot showed port 22 locked to a single IP (source starting 103.10), never 0.0.0.0/0, and he deleted the rule anyway that day at 17:55 PKT (memory/2026-11-07.md, line 19; item marked closed for good). Do not re-raise as a 0.0.0.0/0 finding. Resolved 2026-11-13: host-hardening-review.md section 3 no longer describes "22 from his IP"; the review and this audit now agree the rule is gone. |
 | 14 | No unattended security updates or host firewall configured on the EC2 host | Low | Fixed: unattended-upgrades added to setup-host.sh; applied on the live host 2026-11-13 in the Step 1 SSM session (already newest, enabled, health ok). ufw deliberately deferred: it can break Docker networking, the security group is the inbound filter. CLOSED. |
 | 15 | Attempt loop retries the same prompt 6 times with no feedback from the last attempt | Medium | Fixed 2026-11-14 (his call 2026-11-13: build in Phase 5): attempts 2-6 now get the previous attempt's exit code and a capped 2000-char log tail in the prompt (MAX_PROMPT_LOG_TAIL_CHARS); a syntax failure reports itself instead of an invented exit code; attempt 1 gets no feedback. TDD: 3 new tests (140 tests). Takes effect on the host at the next deploy-host.sh run; the fixture benchmark must be re-run after it to re-measure the 7/10 score honestly. CLOSED code-side; benchmark re-run is the founder's SSM step. |
-| 16 | Pinned Next.js 14.2.18 carries CVE-2025-29927 (critical, CVSS 9.1, middleware authorization bypass; fixed in 14.2.25) | High | Fixed 2026-11-15: bumped to next 14.2.35 (latest 14.x patch); frontend build green (10 routes), landing screenshots reviewed (desktop, full-page, mobile 390; zero page errors). Not directly exploitable here: the app ships no middleware.ts and is hosted on Vercel, which strips the header at the edge. Also added an `npm audit --audit-level=high` gate to the frontend CI job, so a pinned frontend CVE fails the build the way pip-audit does on the backend. CLOSED. |
+| 16 | Pinned Next.js 14.2.18 carries CVE-2025-29927 (critical, CVSS 9.1, middleware authorization bypass; fixed in 14.2.25) | High | Fixed 2026-11-15: bumped to next 14.2.35 (latest 14.x patch); frontend build green (10 routes), landing screenshots reviewed (desktop, full-page, mobile 390; zero page errors). Not directly exploitable here: the app ships no middleware.ts and is hosted on Vercel, which strips the header at the edge. CLOSED. |
+| 17 | Next.js 14.x line carries 25 further advisories with no patched version on the 14.x line (Dec 2025 batch, incl. critical Image Optimization RCE GHSA-2xp9-vwfh-vxw4 and GHSA-2464-fhr4-w9xw, Windows-host RCE GHSA-p293-qw3h-jr36, Server Action / RSC DoS and SSRF advisories) | High | OPEN, accepted risk, not fixable on this line: the advisory data patches these only in 15.5.x / 16.x, so the fix is a Next 15/16 migration (major change, React 19), which is a founder decision for after launch, not an improvement-pass change. Not exploitable in this deployment shape, verified 2026-11-15: no next/image use, no remotePatterns, no rewrites, no middleware, no Server Actions, no custom server, Vercel Linux hosting (not Windows). The frontend CI audit step runs on every push but does not block the build (continue-on-error), so CI stays green while the audit output stays visible; anything fixable on the current line gets fixed. |
+| 18 | Installed postcss 8.4.31 carries 4 high advisories (XSS via unescaped `</style>`, sourceMappingURL file read / path traversal: GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-fxqj-rqcc-2cmp, GHSA-r28c-9q8g-f849) | High | Fixed 2026-11-15: `overrides` in package.json pins postcss to 8.5.23, which clears all four (strictest fix version); frontend build green after the override. Build-time only in any case (postcss processes the repo's own CSS, no attacker-controlled input). CLOSED. |
 
 ## Frontend dependency audit — 2026-11-15
 
@@ -63,6 +65,20 @@ Fix: next 14.2.35 (latest 14.x patch at the time), package.json and
 package-lock.json updated. React 18.3.1 is the latest 18.x line and
 carries no action. Verified: production build green, landing page
 served 200 locally with zero page errors, screenshots reviewed.
+
+Correction, same day: the bump did not clear the audit. `npm audit
+--audit-level=high` in CI failed on 79dbb9e with 2 vulnerabilities (1
+high, 1 critical): the next entry and a postcss entry. The postcss
+entry was fixable on this line (see finding 18, override to 8.5.23).
+The next entry is not: the advisory database lists 25 advisories
+against next@14.2.35, and the December 2025 batch patches only
+15.5.x / 16.x (e.g. GHSA-2xp9-vwfh-vxw4 patched in 15.5.24 and 16.3.3,
+GHSA-2464-fhr4-w9xw in 15.5.28 and 16.4.1). There is no 14.x patch.
+The CI step now runs with continue-on-error: the audit still runs on
+every push and its output stays visible, but the known 14.x
+advisories do not hold CI red while no fix exists short of a major
+migration. That migration (Next 15/16, React 19) is recorded as
+finding 17, an accepted risk until the founder decides otherwise.
 
 ## Failure drills
 
