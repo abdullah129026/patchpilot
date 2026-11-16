@@ -7,16 +7,18 @@ a failing test, and a suggested fix diff, with captured logs as proof.
 ## Status
 
 Live demo: https://patchpilot-shah20.vercel.app (frontend on Vercel).
-The agent service runs on the EC2 Docker host; it is not yet wired to
-the public frontend, so live job submission waits on a public agent
-endpoint. Sample reports and the case study work now.
+The agent service runs on the EC2 Docker host at
+https://agent.fluxyai.codes and is wired to the public frontend, so
+live job submission works from the site. Sample reports and the case
+study work now.
 
-Phase 4 (Polish, Landing and Launch Surface) is in progress under the
-Project Phase Blueprint: phase-gated, no day slicing, and a completed
-phase never advances without the founder's approval. Phases 0-3 are
-approved. Phase 3 measured 7 of 10 curated Python issues reproduced
-live on the host (Qwen3-Coder), with the misses published in the case
-study.
+Phase 5 (QA, Security, Performance) was approved 2026-11-15. Phase 6
+(Launch) is current under the Project Phase Blueprint: phase-gated, no
+day slicing, and a completed phase never advances without the
+founder's approval. The latest measured run (2026-11-15 re-run,
+Qwen3-Coder, attempt feedback loop live) reproduced 3 of 10 curated
+Python issues live on the host; the first run (2026-11-06) measured
+7 of 10. Both runs are published in the case study, with the misses.
 
 What exists now:
 
@@ -33,9 +35,8 @@ What exists now:
 - Host rebuild script for the EC2 Docker host (provisioning itself is
   done in the AWS console, see `docs/deploy/ec2-setup.md`).
 
-Deliberately not built yet: live job submission from the public site
-(needs a public agent endpoint, a host step), and Phases 5 (QA,
-Security, Performance) and 6 (Launch).
+Deliberately not built yet: the Phase 6 launch posts, which fire only
+after the corrected benchmark numbers are live on the site.
 
 ## Run the agent service locally
 
