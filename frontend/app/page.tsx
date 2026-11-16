@@ -81,10 +81,11 @@ export default function Home() {
 
       <h2 id="samples">Sample reports</h2>
       <p>
-        Real runs from the fixture suite (2026-11-06, Qwen3-Coder): seven of
-        ten curated issues reproduced. These three show the shape of a
-        report, hits and miss included. The{" "}
-        <Link href="/case-study">case study</Link> has the full distribution.
+        Latest measured run (2026-11-15, Qwen3-Coder, with the attempt
+        feedback loop): three of ten curated issues reproduced. The three
+        samples below are from the first run (2026-11-06), when seven of
+        ten reproduced. The{" "}
+        <Link href="/case-study">case study</Link> has both runs in full.
       </p>
       <div className="grid">
         <div className="card">
