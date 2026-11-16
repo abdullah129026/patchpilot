@@ -64,7 +64,10 @@ export default function ReportPage({ params }: { params: { id: string } }) {
               (Qwen3-Coder, 7 of 10 reproduced). The issue, error, and
               verdict are from the real run; the script and test are the
               recorded reproduction from the fixture. No fix diff is shown:
-              the run&apos;s suggested diff is not stored here.{" "}
+              the run&apos;s suggested diff is not stored here. A re-run on
+              2026-11-15, after the attempt feedback loop was added, scored
+              3 of 10, and four issues that reproduced in this run did not
+              reproduce there.{" "}
               <Link href="/case-study">Read the case study</Link>.
             </p>
           </div>
