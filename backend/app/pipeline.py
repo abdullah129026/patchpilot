@@ -22,6 +22,7 @@ from pathlib import Path
 
 from app import config, stack as stack_mod
 from app.analyzer import analyze_issue
+from app.attempt_memory import record_attempts
 from app.github_client import (
     RateLimitedError,
     checkout_ref,
@@ -279,6 +280,12 @@ def run_job(store_dir, job_id, *, issue=None, clone_fn=None, executor=None, llm=
         )
         return get_job(store_dir, job_id)
     finally:
+        # Attempt memory (improvement track 1a) is best-effort: the
+        # job's verdict never depends on the memory write landing.
+        try:
+            record_attempts(store_dir, job_id)
+        except Exception:
+            pass
         shutil.rmtree(workspace, ignore_errors=True)
 
 
@@ -413,7 +420,13 @@ def _run(store_dir, job_id, job, workspace, issue, clone_fn, executor, llm, star
             continue
         result = _run_steps(executor, workspace, detected, _REPRO_COMMANDS[detected])
         attempts.append(
-            {"n": n, "exit_code": result.exit_code, "log": result.log, "script": script}
+            {
+                "n": n,
+                "exit_code": result.exit_code,
+                "timed_out": result.timed_out,
+                "log": result.log,
+                "script": script,
+            }
         )
         # Attempts are written as they land, so the live job view
         # shows progress instead of waiting for the final verdict.
