@@ -1,7 +1,5 @@
 import json
 
-import pytest
-
 from app import attempt_memory, pipeline
 from app.attempt_memory import classify_failure, read_attempts, record_attempts
 from app.job_store import create_job
